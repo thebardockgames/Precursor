@@ -1,5 +1,7 @@
 # Precursor
 
+<p align="center"><img src="docs/img/precursor/banner.jpg" alt="Precursor: la trilogía de Jak and Daxter, nativa en Android. Powered by OpenGOAL, proyecto no oficial." width="100%"></p>
+
 **Precursor · powered by [OpenGOAL](https://opengoal.dev)**
 
 La trilogía de Jak and Daxter, nativa en Android ARM64. Es un port experimental y **no oficial**
