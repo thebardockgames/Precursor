@@ -15,7 +15,14 @@
 #include "game/graphics/texture/TextureConverter.h"
 #include "game/graphics/texture/TextureID.h"
 
+#ifdef __ANDROID__
+// Goes through opengl.h rather than a direct <GLES3/gl32.h> include so the anisotropic-filtering
+// and other alias #defines it sets up (GL_TEXTURE_MAX_ANISOTROPY, glClearDepth, ...) are visible
+// here too.
+#include "game/graphics/pipelines/opengl.h"
+#else
 #include "third-party/glad/include/glad/glad.h"
+#endif
 
 // verify all texture lookups.
 // will make texture lookups slower and likely caused dropped frames when loading

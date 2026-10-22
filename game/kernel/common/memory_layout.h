@@ -27,6 +27,17 @@ constexpr u32 LINK_CONTROL_NAME_ADDR = 0x13AD80;
 constexpr u32 DEBUG_HEAP_START = 0x5000000;
 
 namespace jak2 {
+// ARM64 resident code and the 1.5x level-page budget do not fit in the PC heap.
+// Use part of the unused gap, retaining 8 MiB before the debug heap and leaving
+// the 128 MiB memory mapping / upper GOAL stack unchanged. (AI-assisted)
+constexpr u32 ARM64_GLOBAL_HEAP_END = 0x4800000;
+static_assert(ARM64_GLOBAL_HEAP_END > ::GLOBAL_HEAP_END);
+static_assert(ARM64_GLOBAL_HEAP_END + 0x800000 == DEBUG_HEAP_START);
+#ifdef __aarch64__
+constexpr u32 GLOBAL_HEAP_END = BIG_MEMORY ? ARM64_GLOBAL_HEAP_END : ::GLOBAL_HEAP_END;
+#else
+constexpr u32 GLOBAL_HEAP_END = ::GLOBAL_HEAP_END;
+#endif
 constexpr u32 DEBUG_HEAP_SIZE = 0x2f00000;
 }
 

@@ -536,8 +536,10 @@ void GlowRenderer::blit_depth(SharedRenderState* render_state) {
     glBindTexture(GL_TEXTURE_2D, 0);
 
     glBindTexture(GL_TEXTURE_2D, m_ogl.probe_fbo_depth_tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, 0,
-                 GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, NULL);
+    // Resizing must preserve the constructor's format and match render_fb's
+    // depth attachment; otherwise GLES rejects every depth blit. (AI-assisted)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, 0,
+                 GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
   }
 
@@ -572,8 +574,10 @@ void GlowRenderer::downsample_chain(SharedRenderState* render_state,
                                     ScopedProfilerNode& prof,
                                     u32 num_sprites) {
   glBindVertexArray(m_ogl_downsampler.vao);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   GLint old_viewport[4];
   glGetIntegerv(GL_VIEWPORT, old_viewport);
   render_state->shaders[ShaderId::GLOW_PROBE_DOWNSAMPLE].activate();
@@ -601,8 +605,10 @@ void GlowRenderer::downsample_chain(SharedRenderState* render_state,
 void GlowRenderer::setup_buffers_for_draws() {
   glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.probe_fbo);
   glBindVertexArray(m_ogl.vao);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   // don't want to write to the depth buffer we just copied, just test against it.
   glDepthMask(GL_FALSE);
   glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
@@ -741,8 +747,17 @@ void GlowRenderer::probe_and_copy_new(SharedRenderState* render_state, ScopedPro
   render_state->shaders[ShaderId::GLOW_PROBE_READ].activate();
   glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.downsample_fbos[0].fbo);
   glBindTexture(GL_TEXTURE_2D, m_ogl.probe_fbo_depth_tex);
+#ifdef __ANDROID__
+  // GLES 3.2 section 8.17: a depth texture with compare mode NONE is
+  // incomplete with LINEAR filtering. Sampling it returned zero and made
+  // hidden glow probes pass their depth test. Keep color downsampling linear.
+  // https://registry.khronos.org/OpenGL/specs/es/3.2/es_spec_3.2.pdf (AI-assisted)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+#else
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+#endif
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glViewport(0, 0, m_ogl.downsample_fbos[0].size, m_ogl.downsample_fbos[0].size);
@@ -808,8 +823,10 @@ void GlowRenderer::flush(SharedRenderState* render_state, ScopedProfilerNode& pr
 void GlowRenderer::draw_sprites(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
   glBindVertexArray(m_ogl.vao);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
 
   glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D, m_ogl.downsample_fbos[kDownsampleIterations - 1].tex);

@@ -1,5 +1,6 @@
 #version 410 core
 
+
 layout (location = 0) in vec2 ndc_in;
 layout (location = 1) in vec4 color_in;
 

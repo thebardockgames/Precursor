@@ -203,11 +203,16 @@ void BlitDisplays::do_slow_time(SharedRenderState* render_state, ScopedProfilerN
 }
 
 void BlitDisplays::draw_debug_window() {
+#ifdef __ANDROID__
+  // glGetTexLevelParameteriv() doesn't exist in GLES - see the identical guard + full explanation
+  // in TextureAnimator.cpp's imgui_show_tex(). Debug-window-only, not gameplay-required.
+#else
   glBindTexture(GL_TEXTURE_2D, m_copier->texture());
   int w, h;
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
   ImGui::Image((ImTextureID)(intptr_t)m_copier->texture(), ImVec2(w, h));
+#endif
 }
 
 void BlitDisplays::apply_color_filter(SharedRenderState* render_state, ScopedProfilerNode& prof) {

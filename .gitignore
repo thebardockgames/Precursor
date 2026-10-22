@@ -3,8 +3,21 @@
 prof.json
 /gpu-test.json
 
+# real ISO extraction backed up from a device - large, copyrighted
+# game data, never committed.
+/_device_backup/
+
 # for CMake
 /Testing
+
+# Switch port POC build output - large, machine/toolchain-specific, regenerated from
+# scripts/switch-port/cmake-poc/.
+/build-switch-poc/
+/dist-switch/
+*.nro
+
+# Android port POC build output - same idea, regenerated from scripts/android-port/cmake-poc/.
+/build-android-poc/
 
 # for clion
 cmake-build-debug/*
@@ -88,3 +101,16 @@ unifont-15.0.03.ttf
 *.diff
 goalc-report.html
 _new-all-types.gc
+# Game ISOs kept locally for testing; never commit game files. (AI-assisted)
+/isos/
+
+# Precursor: private development notes and local bug reports stay out of the repository.
+/PORTING_NOTES.md
+/NEXT_STEPS.md
+/CLAUDE.md
+/scripts/android-port/JAK2.md
+/scripts/android-port/JAK3.md
+/scripts/android-port/LAUNCHER.md
+/scripts/android-port/DEVLOOP.md
+/scripts/android-port/CAMBIOS_LAUNCHER.md
+/reports/

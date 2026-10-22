@@ -337,11 +337,13 @@ void TFragment::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_k
                      tree.unpacked.indices.data(), GL_STREAM_DRAW);
 
         glGenTextures(1, &tree_cache.time_of_day_texture);
-        glBindTexture(GL_TEXTURE_1D, tree_cache.time_of_day_texture);
-        glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 0, GL_RGBA,
-                     GL_UNSIGNED_INT_8_8_8_8, nullptr);
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glBindTexture(GL_TEXTURE_2D, tree_cache.time_of_day_texture);
+        // See the identical fix + full explanation in Hfrag.cpp's load_hfrag_level(): GLES has no
+        // sampler1D/glTexImage1D/GL_UNSIGNED_INT_8_8_8_8 - 2D-with-height-1 + GL_UNSIGNED_BYTE.
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 1, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glBindVertexArray(0);
       }
     }
@@ -423,9 +425,12 @@ void TFragment::render_tree(int geom,
   }
   interp_time_of_day(settings.camera.itimes, *tree.colors, m_color_result.data());
   glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-  glTexSubImage1D(GL_TEXTURE_1D, 0, 0, tree.colors->color_count, GL_RGBA,
-                  GL_UNSIGNED_INT_8_8_8_8_REV, m_color_result.data());
+  glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
+  // See the identical fix + full explanation in Hfrag.cpp's render_tree(): GL_UNSIGNED_INT_8_8_8_8_REV
+  // doesn't exist in GLES, but is byte-for-byte identical to GL_UNSIGNED_BYTE + GL_RGBA on any
+  // real little-endian hardware for this plain R,G,B,A-in-memory-order source type.
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tree.colors->color_count, 1, GL_RGBA,
+                  GL_UNSIGNED_BYTE, m_color_result.data());
 
   first_tfrag_draw_setup(settings.camera, render_state, ShaderId::TFRAG3);
 
@@ -434,8 +439,10 @@ void TFragment::render_tree(int geom,
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,
                render_state->no_multidraw ? tree.single_draw_index_buffer : tree.index_buffer);
   glActiveTexture(GL_TEXTURE0);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
 
   cull_check_all_slow(settings.camera.planes, tree.vis->vis_nodes, settings.occlusion_culling,
                       m_cache.vis_temp.data());
@@ -566,7 +573,7 @@ void TFragment::discard_tree_cache() {
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
     for (auto& tree : m_cached_trees[geom]) {
       if (tree.kind != tfrag3::TFragmentTreeKind::INVALID) {
-        glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
+        glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
         glDeleteTextures(1, &tree.time_of_day_texture);
         glDeleteBuffers(1, &tree.single_draw_index_buffer);
         glDeleteBuffers(1, &tree.index_buffer);

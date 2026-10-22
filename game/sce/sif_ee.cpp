@@ -1,9 +1,12 @@
 #include "sif_ee.h"
 
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <thread>
 #include <unordered_map>
 
+#include "common/log/log.h"
 #include "common/util/Assert.h"
 #include "common/util/FileUtil.h"
 
@@ -83,6 +86,8 @@ s32 sceSifCallRpc(sceSifClientData* bd,
   ASSERT(!end_func);
   ASSERT(!end_para);
   ASSERT(mode == 1);  // async
+  lg::trace("[J3-INTRO-NATIVE] sceSifCallRpc channel(id)={} fno={} ssize={}", bd->rpcd.id, fno,
+            ssize);
   iop->kernel.sif_rpc(bd->rpcd.id, fno, mode, send, ssize, recv, rsize);
   iop->signal_run_iop();
   return 0;
@@ -90,7 +95,22 @@ s32 sceSifCallRpc(sceSifClientData* bd,
 
 s32 sceSifCheckStatRpc(sceSifRpcData* bd) {
   iop->signal_run_iop();
-  return iop->kernel.sif_busy(bd->id);
+  bool busy = iop->kernel.sif_busy(bd->id);
+  if (busy) {
+    // GOAL's rpc-h.gc polls this in a tight spin loop while waiting for the IOP-side
+    // RPC to finish (see (while (nonzero? (rpc-busy? ...))) in `sync`/`call`). On real
+    // PS2 hardware that's fine - EE and IOP are separate physical CPUs. Here the "IOP"
+    // is a real OS thread sharing a core with this one, so a caller that never yields
+    // can starve it of scheduler time indefinitely (observed as an unrecoverable hang
+    // waiting on sound RPC port 0 after a burst of queued dialogue on Android/ARM64).
+    // Only yield on the "still busy" path so a single non-blocking poll stays fast.
+    // A plain yield() only asks the scheduler to prefer equal/higher-priority threads,
+    // which isn't enough if this thread runs at an elevated priority (common for game
+    // threads on Android) - a short bounded sleep actually removes it from the run
+    // queue so the IOP thread gets a real chance to make progress.
+    std::this_thread::sleep_for(std::chrono::microseconds(200));
+  }
+  return busy;
 }
 
 s32 sceSifBindRpc(sceSifClientData* bd, u32 request, u32 mode) {

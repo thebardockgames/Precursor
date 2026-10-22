@@ -67,6 +67,7 @@
       (set! (-> ,obj icons icon-idx) (new 'static 'hud-icon))
       (let ((new-manipy (manipy-spawn (new 'static 'vector :w 1.0) ,entity ,skel #f :to ,obj)))
         (when new-manipy
+          (format 0 "(AI-assisted) HUD manipy handle ~X process ~X type ~A draw ~X root ~X~%" new-manipy (-> new-manipy) (-> new-manipy 0 type) (-> new-manipy 0 draw) (-> new-manipy 0 root))
           (set! (-> (-> new-manipy) draw dma-add-func) dma-add-process-drawable-hud-with-hud-lights)
           (set-vector! (-> (-> new-manipy) root trans) 0.0 0.0 0.0 1.0)
           (set-vector! (-> (-> new-manipy) root scale) ,scale-x ,scale-y ,scale-x 1.0)

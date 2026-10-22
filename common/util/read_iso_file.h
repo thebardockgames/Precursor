@@ -33,7 +33,7 @@ struct IsoFile {
 };
 
 IsoFile find_files_in_iso(FILE* fp);
-void unpack_iso_files(FILE* fp, IsoFile& layout, const fs::path& dest);
+void unpack_iso_files(FILE* fp, IsoFile& layout, const fs::path& dest, bool print_progress = false);
 IsoFile unpack_iso_files(FILE* fp,
                          const fs::path& dest,
                          bool print_progress,

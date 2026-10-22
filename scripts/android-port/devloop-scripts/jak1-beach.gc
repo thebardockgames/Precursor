@@ -1,0 +1,5 @@
+;; Teleport to the beach and play there for a minute. (AI-assisted)
+;; Run: scripts/android-port/devloop.sh -S scripts/android-port/devloop-scripts/jak1-beach.gc -t 300
+(start 'play (get-continue-by-name *game-info* "beach-start"))
+(script-wait 60)
+(format #t "[script-print] level0=~A level1=~A~%" (-> *level* level0 name) (-> *level* level1 name))

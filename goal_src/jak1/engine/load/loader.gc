@@ -57,12 +57,14 @@
   (let ((s5-0 (-> this string-array)))
     (dotimes (s3-0 (-> s5-0 length))
       (when (string= art-name (-> s5-0 s3-0))
+        (format 0 "(AI-assisted) art lookup ~S matched ~S result ~D~%" art-name (-> s5-0 s3-0) (-> this art-group-array s3-0))
         (when do-reload
           ;; we have it, reload it if requested
           (let ((v1-4 (art-group-load-check art-name heap version))) (if v1-4 (set! (-> this art-group-array s3-0) v1-4))))
         (return (-> this art-group-array s3-0))))
     ;; nope, we don't have it,add it to the list.
     (let ((v0-2 (art-group-load-check art-name heap version)))
+      (format 0 "(AI-assisted) art lookup missed ~S result ~D~%" art-name v0-2)
       (when v0-2
         (set! (-> s5-0 (-> s5-0 length)) art-name)
         (set! (-> this art-group-array (-> s5-0 length)) v0-2)

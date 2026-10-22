@@ -140,7 +140,10 @@ void* RPC_Player(unsigned int /*fno*/, void* data, int size) {
               }
             }
 
-            auto vagfile = FindVAGFile(namebuf);
+            auto vagfile = FindVAGFile(namebuf);
+            // Hints/dialogue go through here: log the line and whether it exists. (AI-assisted)
+            lg::debug("[OVERLORD] play vag '{}'{}", std::string(namebuf, 8),
+                      vagfile ? "" : " (not in VAGDIR, the hint will be silent)");
 
             memcpy(namebuf, "VAGWAD  ", 8);
             strcpy(&namebuf[8], gLanguage);

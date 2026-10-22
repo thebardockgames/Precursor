@@ -2,7 +2,9 @@
 
 #include "game/system/hid/sdl_util.h"
 
+#ifndef __ANDROID__
 #include "third-party/glad/include/glad/glad.h"
+#endif
 
 namespace tests {
 void to_json(json& j, const GPUTestOutput& obj) {
@@ -16,8 +18,22 @@ void to_json(json& j, const GPUTestOutput& obj) {
 GPUTestOutput run_gpu_test(const std::string& test_type) {
   lg::info("Running GPU Test - {}", test_type);
   GPUTestOutput output = {false, "", ""};
+#ifdef __ANDROID__
+  // This test creates its own standalone desktop-GL-profile window/context, unrelated to (and
+  // incompatible with) the main game's real GLES renderer - not meaningful on Android as written.
   if (test_type == "opengl") {
+    output = {false, "GPU test not implemented for Android (see gfx_test.cpp)", ""};
+  } else {
+    lg::error("Invalid GPU test type - {}", test_type);
+  }
+#else
+  if (test_type == "opengl") {
+#ifdef __SWITCH__
+    // SDL2's SDL_Init returns 0 on success, negative on failure (SDL3 flipped this to bool).
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+#else
     if (!SDL_Init(SDL_INIT_VIDEO)) {
+#endif
       output = {false, "SDL initialization failed",
                 sdl_util::log_and_return_error("SDL initialization failed")};
       return output;
@@ -28,8 +44,15 @@ GPUTestOutput run_gpu_test(const std::string& test_type) {
 #ifdef __APPLE__
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 #endif
+#ifdef __SWITCH__
+    // SDL2's SDL_CreateWindow takes an explicit x/y position (SDL3 dropped that param).
+    SDL_Window* window = SDL_CreateWindow("OpenGL Version", SDL_WINDOWPOS_CENTERED,
+                                          SDL_WINDOWPOS_CENTERED, 800, 600,
+                                          SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+#else
     SDL_Window* window =
         SDL_CreateWindow("OpenGL Version", 800, 600, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+#endif
     if (!window) {
       output = {false, "SDL window creation failed",
                 sdl_util::log_and_return_error("SDL initialization failed")};
@@ -55,13 +78,18 @@ GPUTestOutput run_gpu_test(const std::string& test_type) {
           output.gpuVendorString = (const char*)vendorString;
         }
       }
+#ifdef __SWITCH__
+      SDL_GL_DeleteContext(glContext);
+#else
       SDL_GL_DestroyContext(glContext);
+#endif
     }
     SDL_DestroyWindow(window);
     SDL_Quit();
   } else {
     lg::error("Invalid GPU test type - {}", test_type);
   }
+#endif
   return output;
 }
 };  // namespace tests

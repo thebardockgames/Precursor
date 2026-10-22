@@ -126,7 +126,9 @@ void CodeTester::emit_push_all_simd() {
   } else if (m_gen.instr_set() == InstructionSet::ARM64) {
     for (int i = 0; i < 16; i++) {
       emit(IGen::sub_gpr64_imm8s(m_gen, SP, 16));
-      emit(IGen::store128_gpr64_simd128(m_gen, SP, V0 + i));
+      // `V0 + i` alone is a bare int, indistinguishable from a GPR of the same numeric id without
+      // the explicit vector tag - see Register.h's own comment on `m_is_arm64_vector`.
+      emit(IGen::store128_gpr64_simd128(m_gen, SP, Register(V0 + i, true)));
     }
   } else {
     throw std::runtime_error("CodeTester::emit_push_all_simd unhandled instruction set");
@@ -145,7 +147,7 @@ void CodeTester::emit_pop_all_simd() {
     emit(IGen::add_gpr64_imm8s(m_gen, RSP, 8));
   } else if (m_gen.instr_set() == InstructionSet::ARM64) {
     for (int i = 0; i < 16; i++) {
-      emit(IGen::load128_simd128_gpr64(m_gen, V0 + i, SP));
+      emit(IGen::load128_simd128_gpr64(m_gen, Register(V0 + i, true), SP));
       emit(IGen::add_gpr64_imm8s(m_gen, SP, 16));
     }
   } else {

@@ -1,0 +1,5 @@
+;; Zoomer check: teleport to Precursor Basin (rolling) and stay. (AI-assisted)
+(start 'play (get-continue-by-name *game-info* "rolling-start"))
+(script-wait 70)
+(start 'play (get-continue-by-name *game-info* "village1-hut"))
+(script-wait 40)

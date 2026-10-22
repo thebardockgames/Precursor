@@ -198,6 +198,7 @@ InternedSymbolPtr Interpreter::intern_ptr(const std::string& name) {
 /*!
  * Display the REPL, which will run until the user executes exit.
  */
+#ifndef __SWITCH__
 void Interpreter::execute_repl(REPL::Wrapper& repl) {
   want_exit = false;
   while (!want_exit) {
@@ -216,6 +217,7 @@ void Interpreter::execute_repl(REPL::Wrapper& repl) {
     }
   }
 }
+#endif
 
 /*!
  * Signal an evaluation error. This throws an exception which will unwind the evaluation stack

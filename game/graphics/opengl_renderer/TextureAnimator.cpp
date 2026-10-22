@@ -1,3 +1,10 @@
+// NOTE: every GL_UNSIGNED_INT_8_8_8_8_REV in this file was mechanically replaced with
+// GL_UNSIGNED_BYTE - that packed type doesn't exist in GLES, but is byte-for-byte identical to
+// GL_UNSIGNED_BYTE + GL_RGBA on any real little-endian hardware (verified against the OpenGL
+// spec's packed-pixel-format bit layout, not just assumed - see the development notes' "Android GLES
+// 3.2 renderer port" section for the derivation). Not platform-gated since it's a genuine no-op
+// substitution on every currently-supported platform, not an Android-specific workaround.
+
 #include "TextureAnimator.h"
 
 #include "common/global_profiler/GlobalProfiler.h"
@@ -59,14 +66,24 @@
 //  This breaks the fade-out/thresholding, and likely the colors. But it still looks vaguely like
 //  clouds.
 void debug_save_opengl_texture(const std::string& out, GLuint texture) {
+#ifdef __ANDROID__
+  // glGetTexLevelParameteriv()/glGetTexImage() don't exist in GLES at all (a real readback would
+  // need an FBO + glReadPixels instead) - this is a dev-only texture-dump tool, dead code in
+  // practice today (only ever called from commented-out debug lines in this same file), so it's
+  // simplest to just no-op it on Android rather than reimplement the readback path for something
+  // unused.
+  (void)out;
+  (void)texture;
+#else
   glBindTexture(GL_TEXTURE_2D, texture);
   int w, h;
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
   lg::print("saving texture with size {} x {}\n", w, h);
   std::vector<u8> data(w * h * 4);
-  glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, data.data());
+  glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
   file_util::write_rgba_png(out, data.data(), w, h);
+#endif
 }
 
 /*!
@@ -132,7 +149,7 @@ OpenGLTexturePool::OpenGLTexturePool(GameVersion version) {
     glGenTextures(a.n, l.data());
     for (auto t : l) {
       glBindTexture(GL_TEXTURE_2D, t);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, a.w, a.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, a.w, a.h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                    nullptr);
     }
   }
@@ -162,7 +179,7 @@ GLuint OpenGLTexturePool::allocate(u64 w, u64 h) {
     glGenTextures(1, &slot);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, slot);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     return slot;
   }
 
@@ -280,7 +297,7 @@ int output_slot_by_idx(GameVersion version, const std::string& name) {
  */
 void opengl_upload_texture(GLint dest, const void* data, int w, int h) {
   glBindTexture(GL_TEXTURE_2D, dest);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
   glGenerateMipmap(GL_TEXTURE_2D);
   float aniso = 0.0f;
   glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &aniso);
@@ -304,7 +321,7 @@ void opengl_upload_resize_texture(FramebufferTexturePair& fbt,
     glGenTextures(1, &temp_texture);
     glBindTexture(GL_TEXTURE_2D, temp_texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, data_size.x(), data_size.y(), 0, GL_RGBA,
-                 GL_UNSIGNED_INT_8_8_8_8_REV, data);
+                 GL_UNSIGNED_BYTE, data);
 
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vertex_buffer);
@@ -493,23 +510,23 @@ TextureAnimator::TextureAnimator(ShaderLibrary& shaders,
       m_psm32_to_psm8_32_32(32, 32, 16, 64),
       m_psm32_to_psm8_64_64(64, 64, 64, 64),
       m_version(version),
-      m_sky_blend_texture(kFinalSkyTextureSize, kFinalSkyTextureSize, GL_UNSIGNED_INT_8_8_8_8_REV),
-      m_sky_final_texture(kFinalSkyTextureSize, kFinalSkyTextureSize, GL_UNSIGNED_INT_8_8_8_8_REV),
+      m_sky_blend_texture(kFinalSkyTextureSize, kFinalSkyTextureSize, GL_UNSIGNED_BYTE),
+      m_sky_final_texture(kFinalSkyTextureSize, kFinalSkyTextureSize, GL_UNSIGNED_BYTE),
       m_sky_hires_blend_texture(kFinalSkyHiresTextureSize,
                                 kFinalSkyHiresTextureSize,
-                                GL_UNSIGNED_INT_8_8_8_8_REV),
+                                GL_UNSIGNED_BYTE),
       m_sky_hires_final_texture(kFinalSkyHiresTextureSize,
                                 kFinalSkyHiresTextureSize,
-                                GL_UNSIGNED_INT_8_8_8_8_REV),
+                                GL_UNSIGNED_BYTE),
       m_slime_blend_texture(kFinalSlimeTextureSize,
                             kFinalSlimeTextureSize,
-                            GL_UNSIGNED_INT_8_8_8_8_REV),
+                            GL_UNSIGNED_BYTE),
       m_slime_final_texture(kFinalSlimeTextureSize,
                             kFinalSlimeTextureSize,
-                            GL_UNSIGNED_INT_8_8_8_8_REV),
+                            GL_UNSIGNED_BYTE),
       m_slime_final_scroll_texture(kFinalSlimeTextureSize,
                                    kFinalSlimeTextureSize,
-                                   GL_UNSIGNED_INT_8_8_8_8_REV),
+                                   GL_UNSIGNED_BYTE),
       m_shaders(&shaders) {
   glGenVertexArrays(1, &m_vao);
   glGenBuffers(1, &m_vertex_buffer);
@@ -562,22 +579,23 @@ TextureAnimator::TextureAnimator(ShaderLibrary& shaders,
       data[i * 16 + j] = (((i / 4) & 1) ^ ((j / 4) & 1)) ? c1 : c0;
     }
   }
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                data.data());
   glGenerateMipmap(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, 0);
 
   // create the slime LUT texture
+  // GLES has no sampler1D/glTexImage1D at all - 2D-with-height-1 instead, matching
+  // tex_anim.frag's tex_T10 (see the development notes' "Android GLES 3.2 renderer port" section).
   glGenTextures(1, &m_slime_lut_texture);
-  glBindTexture(GL_TEXTURE_1D, m_slime_lut_texture);
+  glBindTexture(GL_TEXTURE_2D, m_slime_lut_texture);
   std::vector<u8> slime_data;
   for (auto x : kSlimeLutData) {
     slime_data.push_back(x * 255);
   }
-  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
-               slime_data.data());
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 256, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, slime_data.data());
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glBindTexture(GL_TEXTURE_2D, 0);
 
   shader.activate();
@@ -657,14 +675,14 @@ int TextureAnimator::create_fixed_anim_array(const std::vector<FixedAnimDef>& de
     auto* dtex = tex_by_name(m_common_level, anim.def.tex_name);
     if (anim.def.override_size) {
       anim.fbt.emplace(anim.def.override_size->x(), anim.def.override_size->y(),
-                       GL_UNSIGNED_INT_8_8_8_8_REV);
+                       GL_UNSIGNED_BYTE);
       // I think there's kind of a bug here - if the game accesses a resized texture before
       // the animation is run once, it can end up using the wrong size.
       // For PC, we just resize the texture to the new size at startup, which avoids the texture
       // changing sizes at runtime.
       opengl_upload_resize_texture(*anim.fbt, dtex->data.data(), {dtex->w, dtex->h}, *m_shaders);
     } else {
-      anim.fbt.emplace(dtex->w, dtex->h, GL_UNSIGNED_INT_8_8_8_8_REV);
+      anim.fbt.emplace(dtex->w, dtex->h, GL_UNSIGNED_BYTE);
       opengl_upload_texture(anim.fbt->texture(), dtex->data.data(), dtex->w, dtex->h);
     }
 
@@ -689,11 +707,19 @@ int TextureAnimator::create_fixed_anim_array(const std::vector<FixedAnimDef>& de
 }
 
 void imgui_show_tex(GLuint tex) {
+#ifdef __ANDROID__
+  // glGetTexLevelParameteriv() doesn't exist in GLES - this is an ImGui debug-window texture
+  // preview, not gameplay-required. A real fix would have callers track width/height themselves
+  // instead of querying the GL texture object for them; not done since nothing currently exercises
+  // this debug window on Android.
+  (void)tex;
+#else
   glBindTexture(GL_TEXTURE_2D, tex);
   int w, h;
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
   ImGui::Image((ImTextureID)(intptr_t)tex, ImVec2(w, h));
+#endif
 }
 
 void TextureAnimator::draw_debug_window() {
@@ -1525,7 +1551,7 @@ void TextureAnimator::force_to_gpu(int tbp) {
       int th = entry.tex_height;
       setup_vram_entry_for_gpu_texture(tw, th, tbp);
       glBindTexture(GL_TEXTURE_2D, entry.tex.value().texture());
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                    entry.data.data());
       glBindTexture(GL_TEXTURE_2D, 0);
       entry.kind = VramEntry::Kind::GPU;
@@ -1553,7 +1579,7 @@ void TextureAnimator::force_to_gpu(int tbp) {
       setup_vram_entry_for_gpu_texture(tw, th, tbp);
       // load the texture.
       glBindTexture(GL_TEXTURE_2D, entry.tex.value().texture());
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                    rgba_data.data());
       glBindTexture(GL_TEXTURE_2D, 0);
       entry.kind = VramEntry::Kind::GPU;
@@ -1579,7 +1605,7 @@ void TextureAnimator::force_to_gpu(int tbp) {
       }
       setup_vram_entry_for_gpu_texture(tw, th, tbp);
       glBindTexture(GL_TEXTURE_2D, entry.tex.value().texture());
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                    rgba_data.data());
       glBindTexture(GL_TEXTURE_2D, 0);
       entry.kind = VramEntry::Kind::GPU;
@@ -2037,7 +2063,7 @@ GLuint TextureAnimator::make_temp_gpu_texture(const u32* data, u32 width, u32 he
   GLuint gl_tex = m_opengl_texture_pool.allocate(width, height);
   m_in_use_temp_textures.push_back(TempTexture{gl_tex, width, height});
   glBindTexture(GL_TEXTURE_2D, gl_tex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                data);
   glBindTexture(GL_TEXTURE_2D, 0);
   return gl_tex;
@@ -2339,7 +2365,7 @@ VramEntry* TextureAnimator::setup_vram_entry_for_gpu_texture(int w, int h, int t
       entry->tex->update_texture_size(w, h);
       entry->tex->update_texture_unsafe(m_opengl_texture_pool.allocate(w, h));
     } else {
-      entry->tex.emplace(w, h, GL_UNSIGNED_INT_8_8_8_8_REV);
+      entry->tex.emplace(w, h, GL_UNSIGNED_BYTE);
     }
   }
 
@@ -2771,6 +2797,12 @@ int update_opengl_noise_texture(GLuint texture,
 }
 
 void debug_save_opengl_u8_texture(const std::string& out, GLuint texture) {
+#ifdef __ANDROID__
+  // See the identical guard + full explanation in debug_save_opengl_texture() above - same
+  // dev-only, dead-in-practice texture dump tool, no GLES readback path reimplemented for it.
+  (void)out;
+  (void)texture;
+#else
   glBindTexture(GL_TEXTURE_2D, texture);
   int w, h;
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
@@ -2786,6 +2818,7 @@ void debug_save_opengl_u8_texture(const std::string& out, GLuint texture) {
     data[i * 4 + 3] = 255;
   }
   file_util::write_rgba_png(out, data.data(), w, h);
+#endif
 }
 
 void TextureAnimator::setup_sky() {
@@ -2959,7 +2992,7 @@ void TextureAnimator::run_slime(const SlimeInput& input) {
     glUniform2fv(m_uniforms.uvs, 4, uv);
 
     glActiveTexture(GL_TEXTURE10);
-    glBindTexture(GL_TEXTURE_1D, m_slime_lut_texture);
+    glBindTexture(GL_TEXTURE_2D, m_slime_lut_texture);
     glActiveTexture(GL_TEXTURE0);
 
     // Anim 1:

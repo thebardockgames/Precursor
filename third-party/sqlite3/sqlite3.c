@@ -165,7 +165,14 @@
 #else
 /* This is not VxWorks. */
 #define OS_VXWORKS 0
+#if !defined(__SWITCH__)
+/* devkitA64's newlib has fchown() but not geteuid(), and this amalgamation
+ * only guards fchown()/geteuid() syscall usage behind `defined(HAVE_FCHOWN)`
+ * (checked for existence, not value) - so it must stay fully undefined here
+ * rather than defined-as-0, which is why this is an #if block and not a
+ * plain -DHAVE_FCHOWN=0 command-line override. */
 #define HAVE_FCHOWN 1
+#endif
 #define HAVE_READLINK 1
 #define HAVE_LSTAT 1
 #endif /* defined(_WRS_KERNEL) */

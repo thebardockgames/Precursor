@@ -97,10 +97,13 @@ void* bootstrap_thread_func(void* x) {
   SystemThread* thd = (SystemThread*)x;
   SystemThreadInterface iface(thd);
 
-#ifdef __linux
+#if defined(__linux)
   pthread_setname_np(pthread_self(), thd->name.c_str());
 #elif __APPLE__
   pthread_setname_np(thd->name.c_str());
+#elif defined(__SWITCH__)
+  // devkitA64's pthread implementation doesn't provide pthread_setname_np (it's a
+  // glibc/BSD extension, not POSIX) - naming threads is a debugging nicety only.
 #else
   SetThreadDescription(GetCurrentThread(), (LPCWSTR)utf8_string_to_wide_string(thd->name).c_str());
 #endif

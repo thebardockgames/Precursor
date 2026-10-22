@@ -612,7 +612,7 @@ class IR_GetSymbolValueAsm : public IR_Asm {
 
 class IR_JumpReg : public IR_Asm {
  public:
-  IR_JumpReg(bool use_coloring, const RegVal* src);
+  IR_JumpReg(bool use_coloring, const RegVal* src, bool stack_return = false);
   std::string print() override;
   RegAllocInstr to_rai() override;
   void do_codegen_x86(emitter::ObjectGenerator* gen,
@@ -624,6 +624,7 @@ class IR_JumpReg : public IR_Asm {
 
  protected:
   const RegVal* m_src = nullptr;
+  bool m_stack_return = false;
 };
 
 class IR_RegSetAsm : public IR_Asm {

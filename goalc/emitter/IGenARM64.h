@@ -349,11 +349,57 @@ InstructionARM64 store8_pcRel_s32(Register src, s64 offset);
 
 InstructionARM64 static_store(Register value, s64 offset, int size);
 
+// Loads the real absolute address of something in a different segment into `dest`, resolved by
+// the runtime linker (same cross-segment link mechanism x86's RIP-relative addressing uses, just
+// a wider literal instead of bits packed into an instruction) - see the implementation for the
+// full writeup of why this exists instead of a "proper" ADRP-based PC-relative load.
+InstructionARM64 load_cross_seg_addr(Register dest);
+
 InstructionARM64 static_addr(Register dst, s64 offset);
 
 InstructionARM64 static_load_f32(Register simd_dest, s64 offset);
 
 InstructionARM64 static_store_f32(Register xmm_value, s64 offset);
+
+// Computes `dest = st_reg + <a 32-bit value the runtime symbol linker patches in>` - used for
+// IR_LoadSymbolPointer's "arbitrary named symbol" case (goalc/compiler/IR.cpp), where the actual
+// value (either an offset from the symbol table, or - if the placeholder below was left as -1 - an
+// absolute address; see symlink_v3() in game/kernel/*/klink.cpp, unchanged by this) can't be known
+// until the object file is loaded. x86's equivalent (`lea_reg_plus_off32`, called with a
+// placeholder immediate patched by ObjectGenerator::link_instruction_symbol_ptr()) just writes a
+// real disp32 into a `add` instruction's own encoding - not possible here, since ARM64's ADD-
+// immediate only has a 12-bit field. Same "give the runtime linker a real, plain N-byte literal to
+// overwrite, and load it with a real instruction" approach as load_cross_seg_addr() above, reusing
+// the existing symlink_v3() patcher exactly as-is via `link_instruction_symbol_mem()` (registered
+// through the disp mechanism - see with_disp() on InstructionARM64) instead of teaching it a new,
+// ARM64-specific patch shape.
+InstructionARM64 load_symbol_ptr_offset(Register dest, Register st_reg);
+
+// Same idea as load_symbol_ptr_offset() above, but for IR_GetSymbolValue: also adds `offset_reg`
+// (x86's second base register for this access) and performs an actual 32-bit memory load (sign- or
+// zero-extended per `sign_extend`) from the resulting address into `dest`, rather than just
+// computing a pointer. `scratch` must be a register distinct from `dest`/`st_reg`/`offset_reg` -
+// see IR_GetSymbolValue::to_rai() (goalc/compiler/IR.cpp) for where it comes from. `link_placeholder`
+// must be passed through unchanged from whatever the caller would have given
+// link_instruction_symbol_mem()'s x86 equivalent (e.g. LINK_SYM_NO_OFFSET_FLAG) - see the .cpp for
+// why this isn't just an arbitrary sentinel.
+InstructionARM64 load_symbol_value(Register dest,
+                                   Register st_reg,
+                                   Register offset_reg,
+                                   Register scratch,
+                                   u32 link_placeholder,
+                                   bool sign_extend);
+
+// Store counterpart of load_symbol_value() above, for IR_SetSymbolValue - writes `value`'s low 32
+// bits to `[st_reg + offset_reg + <runtime-patched literal>]`. Since there's no destination
+// register to double as the address accumulator here (unlike load_symbol_value(), this is a pure
+// store), `scratch` alone builds the whole address, one add at a time: loaded with the patched
+// literal first, then st_reg, then offset_reg added in - no second temporary needed.
+InstructionARM64 store_symbol_value(Register st_reg,
+                                    Register offset_reg,
+                                    Register value,
+                                    Register scratch,
+                                    u32 link_placeholder);
 
 // TODO, special load/stores of 128 bit values.
 
@@ -435,6 +481,30 @@ InstructionARM64 unsigned_div_gpr32(Register reg);
  * Convert doubleword to quadword for division.
  */
 InstructionARM64 cdq();
+
+/*!
+ * Real ARM64 3-operand divide/mod helpers, used directly by IR_IntegerMath::do_codegen_arm64
+ * (goalc/compiler/IR.cpp) instead of the x86-shaped idiv_gpr32()/unsigned_div_gpr32()/cdq() above -
+ * ARM64's sdiv/udiv take an arbitrary destination and two arbitrary source registers, with no
+ * RAX/RDX-style implicit pairing at all, so there's no reason to route them through the same
+ * single-operand, implicit-register-destination interface x86 needs. See the development notes.
+ */
+
+/*!
+ * SDIV <Wd>, <Wn>, <Wm> - 32-bit signed divide: dst = n / m.
+ */
+InstructionARM64 sdiv_gpr32_gpr32_gpr32(Register dst, Register n, Register m);
+
+/*!
+ * UDIV <Wd>, <Wn>, <Wm> - 32-bit unsigned divide: dst = n / m.
+ */
+InstructionARM64 udiv_gpr32_gpr32_gpr32(Register dst, Register n, Register m);
+
+/*!
+ * MSUB <Wd>, <Wn>, <Wm>, <Wa> - 32-bit multiply-subtract: dst = a - (n * m). Used to compute a
+ * remainder as `a - (a/m)*m` after a preceding sdiv/udiv has put the quotient in `n`.
+ */
+InstructionARM64 msub_gpr32_gpr32_gpr32_gpr32(Register dst, Register n, Register m, Register a);
 
 /*!
  * Move from gpr32 to gpr64, with sign extension.

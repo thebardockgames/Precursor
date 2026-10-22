@@ -1,5 +1,6 @@
 #version 410 core
 
+
 out vec4 color;
 in vec3 vtx_color;
 in vec2 vtx_st;
@@ -22,9 +23,9 @@ void main() {
 
     color.a = T0.a;
     color.rgb = T0.rgb * vtx_color;
-    color *= 2;
+    color *= 2.0;
   } else {
     color.rgb = vtx_color;
-    color.a = 1;
+    color.a = 1.0;
   }
 }

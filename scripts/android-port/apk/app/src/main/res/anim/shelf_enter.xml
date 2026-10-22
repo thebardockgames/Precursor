@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The shelf comes back forward when options close. (AI-assisted) -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="240" android:interpolator="@android:interpolator/decelerate_cubic">
+    <translate android:fromXDelta="-8%" android:toXDelta="0" />
+    <alpha android:fromAlpha="0.4" android:toAlpha="1" />
+</set>

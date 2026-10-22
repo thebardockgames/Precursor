@@ -106,8 +106,26 @@ s32 goal_main(int argc, const char* const* argv) {
  * Main loop to dispatch the GOAL kernel.
  */
 void KernelCheckAndDispatch() {
+#ifdef __aarch64__
+  // ARM64's `bl`/`blr` don't push a return address onto the stack (it goes in the link register),
+  // unlike x86-64's `call` - so the "-8" below (which exists to leave x86's very first frame
+  // pre-offset by the 8 bytes `call` will push, so the callee's own push restores 16-byte SysV
+  // alignment) doesn't apply here and only leaves this 8-aligned, not the 16-byte alignment AAPCS64
+  // requires. The very first `stp x29, x30, [sp, #-16]!` a GOAL-call trampoline does
+  // (asm_funcs_arm64.s) then straddles the end of the mapped heap - confirmed as a real bug this
+  // way: SIGBUS on real ARM64/Android hardware, fault address exactly at this initial `sp`. Use a
+  // real 16-byte-aligned top with a full 16 bytes of headroom instead.
+  u64 goal_stack = (u64(g_ee_main_mem) + EE_MAIN_MEM_SIZE - 16) & ~0xFull;
+#else
   u64 goal_stack = u64(g_ee_main_mem) + EE_MAIN_MEM_SIZE - 8;
+#endif
 
+#if defined(__ANDROID__) && defined(__aarch64__)
+  // TEMP DEBUG: confirm whether kernel_dispatcher ever returns at all, and how many times, since
+  // a hang here is invisible to the >50ms "Kernel dispatch time" log below (which never fires if
+  // the very first call never returns). See the development notes.
+  static int debug_dispatch_count = 0;
+#endif
   while (MasterExit == RuntimeExitStatus::RUNNING) {
     // try to get a message from the listener, and process it if needed
     Ptr<char> new_message = WaitForMessageAndAck();
@@ -122,9 +140,25 @@ void KernelCheckAndDispatch() {
 
     Timer kernel_dispatch_timer;
     if (MasterUseKernel) {
+#if defined(__ANDROID__) && defined(__aarch64__)
+      // Keep startup/hang breadcrumbs without two synchronous log writes every
+      // frame competing with Android's audio callback. (AI-assisted)
+      const bool log_dispatch = debug_dispatch_count < 8 || debug_dispatch_count % 300 == 0;
+      if (log_dispatch) {
+        fprintf(stderr, "[TEMP DEBUG] entering kernel_dispatcher call #%d\n", debug_dispatch_count);
+        fflush(stderr);
+      }
+#endif
       // use the GOAL kernel.
       call_goal_on_stack(Ptr<Function>(kernel_dispatcher->value), goal_stack, s7.offset,
                          g_ee_main_mem);
+#if defined(__ANDROID__) && defined(__aarch64__)
+      if (log_dispatch) {
+        fprintf(stderr, "[TEMP DEBUG] kernel_dispatcher call #%d returned\n", debug_dispatch_count);
+        fflush(stderr);
+      }
+      debug_dispatch_count++;
+#endif
     } else {
       // use a hack to just run the listener function if there's no GOAL kernel.
       if (ListenerFunction->value != s7.offset) {

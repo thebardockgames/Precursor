@@ -152,11 +152,13 @@ void Shrub::update_load(const LevelData* loader_data) {
 
     glActiveTexture(GL_TEXTURE10);
     glGenTextures(1, &m_trees[l_tree].time_of_day_texture);
-    glBindTexture(GL_TEXTURE_1D, m_trees[l_tree].time_of_day_texture);
-    glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 0, GL_RGBA,
-                 GL_UNSIGNED_INT_8_8_8_8, nullptr);
-    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, m_trees[l_tree].time_of_day_texture);
+    // See the identical fix + full explanation in Hfrag.cpp's load_hfrag_level(): GLES has no
+    // sampler1D/glTexImage1D/GL_UNSIGNED_INT_8_8_8_8 - 2D-with-height-1 + GL_UNSIGNED_BYTE instead.
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 1, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     glBindVertexArray(0);
   }
@@ -211,7 +213,7 @@ bool Shrub::setup_for_level(const std::string& level, SharedRenderState* render_
 
 void Shrub::discard_tree_cache() {
   for (auto& tree : m_trees) {
-    glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
+    glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
     glDeleteTextures(1, &tree.time_of_day_texture);
     glDeleteBuffers(1, &tree.index_buffer);
     glDeleteBuffers(1, &tree.single_draw_index_buffer);
@@ -290,9 +292,12 @@ void Shrub::render_tree(int idx,
 
   Timer setup_timer;
   glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-  glTexSubImage1D(GL_TEXTURE_1D, 0, 0, tree.colors->color_count, GL_RGBA,
-                  GL_UNSIGNED_INT_8_8_8_8_REV, m_color_result.data());
+  glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
+  // See the identical fix + full explanation in Hfrag.cpp's render_tree(): GL_UNSIGNED_INT_8_8_8_8_REV
+  // doesn't exist in GLES, but is byte-for-byte identical to GL_UNSIGNED_BYTE + GL_RGBA on any
+  // real little-endian hardware for this plain R,G,B,A-in-memory-order source type.
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tree.colors->color_count, 1, GL_RGBA,
+                  GL_UNSIGNED_BYTE, m_color_result.data());
 
   first_tfrag_draw_setup(settings.camera, render_state, ShaderId::SHRUB);
 
@@ -301,8 +306,10 @@ void Shrub::render_tree(int idx,
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,
                render_state->no_multidraw ? tree.single_draw_index_buffer : tree.index_buffer);
   glActiveTexture(GL_TEXTURE0);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   if (m_proto_vis_data) {
     update_vis_mask(tree.proto_vis_mask, m_proto_vis_data, m_proto_vis_data_size,
                     tree.proto_name_to_idx);

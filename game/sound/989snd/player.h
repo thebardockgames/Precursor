@@ -18,7 +18,14 @@
 #include "../common/synth.h"
 #include "game/sound/989snd/vagvoice.h"
 
+#ifdef __SWITCH__
+#include <atomic>
+#include <thread>
+
+#include "common/util/switch_compat.h"
+#else
 #include "third-party/cubeb/cubeb/include/cubeb/cubeb.h"
+#endif
 
 namespace snd {
 
@@ -86,6 +93,23 @@ class Player {
   VoiceManager mVmanager;
   s32 mTick{0};
 
+#ifdef __SWITCH__
+  // No cubeb backend exists for Switch/Horizon. audout is a push-based buffer-queue API (not a
+  // pull callback like cubeb), so instead of a callback this drives a dedicated thread that
+  // repeatedly calls Tick() and feeds the result into the audout buffer queue. Conveniently,
+  // audout's fixed hardware format (48000Hz stereo Int16, via audoutGetSampleRate() etc.)
+  // matches what this player already hardcodes for cubeb - no resampling/conversion needed.
+  static constexpr u32 kAudoutBufferCount = 4;
+  static constexpr u32 kAudoutBufferFrames = 1024;  // ~21ms per buffer at 48000Hz
+  std::atomic<bool> mAudoutRunning{false};
+  std::thread mAudoutThread;
+  AudioOutBuffer mAudoutBuffers[kAudoutBufferCount] = {};
+  void* mAudoutBufferMem[kAudoutBufferCount] = {};
+
+  void InitAudout();
+  void DestroyAudout();
+  void AudoutThreadFunc();
+#else
   cubeb* mCtx{nullptr};
   cubeb_stream* mStream{nullptr};
 
@@ -95,5 +119,6 @@ class Player {
                              void* output_buffer,
                              long len);
   static void state_callback(cubeb_stream* stream, void* user, cubeb_state state);
+#endif
 };
 }  // namespace snd

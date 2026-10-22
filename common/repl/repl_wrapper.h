@@ -7,7 +7,14 @@
 
 #include "config.h"
 
+// replxx (interactive line-editing: history, tab-completion) needs a real TTY/terminal, which
+// Switch has no concept of. Everything below that only the interactive dev REPL needs is
+// guarded out; find_repl_username()/load_user_startup_file()/load_repl_config() below are also
+// used by the game runtime itself (game/kernel/*/kboot.cpp) and have no replxx dependency, so
+// they stay available on every platform.
+#ifndef __SWITCH__
 #include "third-party/replxx/include/replxx.hxx"
+#endif
 
 namespace REPL {
 
@@ -16,6 +23,7 @@ struct StartupFile {
   std::vector<std::string> run_after_listen = {};
 };
 
+#ifndef __SWITCH__
 class Wrapper {
  public:
   std::string username;
@@ -56,6 +64,7 @@ class Wrapper {
   replxx::Replxx::key_press_handler_t commit_text_action(std::string text_to_commit);
   std::vector<REPL::KeyBind> keybindings = {};
 };
+#endif
 
 std::string find_repl_username();
 StartupFile load_user_startup_file(const std::string& username, const GameVersion game_version);

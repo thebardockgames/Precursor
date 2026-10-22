@@ -412,7 +412,7 @@
            (.add temp off)
            (.push temp)
            ;; and call!
-           (.jr func)
+           (.jr :stack-return #t func) ;; ARM64: return-from-thread-dead must become X30. (AI-assisted)
            ;; stupid hack so the compiler doesn't throw away these registers.
            (.add carg0 carg1)
            (.add carg2 carg3)

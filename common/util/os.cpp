@@ -27,6 +27,17 @@ size_t get_peak_rss() {
     return 0;
   }
 }
+#elif defined(__SWITCH__)
+#include "common/util/switch_compat.h"
+size_t get_peak_rss() {
+  // Horizon/libnx has no equivalent of Linux's rusage.ru_maxrss (a running historical peak).
+  // This reports current process memory usage instead, which is the closest available proxy.
+  u64 size = 0;
+  if (R_FAILED(svcGetInfo(&size, InfoType_UsedMemorySize, CUR_PROCESS_HANDLE, 0))) {
+    return 0;
+  }
+  return size;
+}
 #else
 #include <sys/resource.h>
 size_t get_peak_rss() {

@@ -1,5 +1,6 @@
 #version 410 core
 
+
 out vec4 color;
 in vec4 vtx_color;
 in vec2 vtx_st;
@@ -21,24 +22,24 @@ void main() {
     vec4 T0 = texture(tex_T0, vtx_st);
     // all merc is tcc=rgba and modulate
     if (decal_enable == 0) {
-      color = vtx_color * T0 * 2;
+      color = vtx_color * T0 * 2.0;
     } else {
       color = T0;
     }
-    color.a *= 2;
+    color.a *= 2.0;
   } else {
     color.rgb = vtx_color.rgb;
 
     if (decal_enable == 0) {
-      color.a = vtx_color.a * 2;
+      color.a = vtx_color.a * 2.0;
     } else {
-      color.a = 1;
+      color.a = 1.0;
     }
   }
 
-  if (light_dir1_fade_en.w > 0) {
+  if (light_dir1_fade_en.w > 0.0) {
     color.a = light_dir0_fade.w;
-  } else if (light_dir1_fade_en.w < 0) {
+  } else if (light_dir1_fade_en.w < 0.0) {
     color.a *= light_dir0_fade.w;
   }
 
@@ -47,5 +48,5 @@ void main() {
     discard;
   }
 
-   color.xyz = mix(color.xyz, fog_color.rgb, clamp(fog_color.a * fog, 0, 1));
+   color.xyz = mix(color.xyz, fog_color.rgb, clamp(fog_color.a * fog, 0.0, 1.0));
 }

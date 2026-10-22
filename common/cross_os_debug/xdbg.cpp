@@ -24,6 +24,8 @@
 #include <sys/types.h>
 #include <sys/user.h>
 #include <sys/wait.h>
+#elif defined(__SWITCH__)
+#include "common/util/switch_compat.h"
 #elif _WIN32
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -207,6 +209,7 @@ bool detach_and_resume(const ThreadID& tid) {
   return true;
 }
 
+#if !defined(__ANDROID__)
 /*!
  * Get all registers now. Must be attached and stopped
  */
@@ -274,6 +277,21 @@ bool set_regs_now(const ThreadID& tid, const Regs& out) {
   // todo, set fprs.
   return true;
 }
+#else
+/*!
+ * bionic's <sys/ptrace.h> doesn't define `struct user`/PTRACE_GETREGS/PTRACE_SETREGS the way
+ * glibc does (and this code is hardcoded to x86-64 register names regardless), so this was never
+ * going to work on an ARM64 Linux target anyway. Stubbed the same way the __APPLE__/__SWITCH__
+ * branches below stub the rest of this cross-process debugger - it's a dev REPL feature, not
+ * something game/gk's own runtime calls.
+ */
+bool get_regs_now(const ThreadID&, Regs*) {
+  return false;
+}
+bool set_regs_now(const ThreadID&, const Regs&) {
+  return false;
+}
+#endif
 
 /*!
  * Break the given thread.  Must be attached and running.
@@ -737,6 +755,62 @@ bool write_goal_memory(const u8* src_buffer,
 }
 
 bool check_stopped(const ThreadID& tid, SignalInfo* out) {
+  return false;
+}
+#elif defined(__SWITCH__)
+/*!
+ * Cross-process ptrace-style debugging isn't a thing on Switch homebrew - it would require
+ * svcDebugActiveProcess from a separate debugger title, an entirely different model. None of
+ * that is implemented here, mirroring the macOS stub above. get_current_thread_id() and
+ * allow_debugging() are implemented for real since the runtime calls them unconditionally.
+ */
+ThreadID::ThreadID(pid_t _id) : id(_id) {}
+
+ThreadID::ThreadID(const std::string& str) : id(std::stoi(str)) {}
+
+std::string ThreadID::to_string() const {
+  return std::to_string(id);
+}
+
+ThreadID get_current_thread_id() {
+  u64 tid = 0;
+  svcGetThreadId(&tid, CUR_THREAD_HANDLE);
+  return ThreadID((pid_t)tid);
+}
+
+void allow_debugging() {}
+
+bool attach_and_break(const ThreadID&) {
+  return false;
+}
+bool detach_and_resume(const ThreadID&) {
+  return false;
+}
+bool get_regs_now(const ThreadID&, Regs*) {
+  return false;
+}
+bool set_regs_now(const ThreadID&, const Regs&) {
+  return false;
+}
+bool break_now(const ThreadID&) {
+  return false;
+}
+bool cont_now(const ThreadID&) {
+  return false;
+}
+bool open_memory(const ThreadID&, MemoryHandle*) {
+  return false;
+}
+bool close_memory(const ThreadID&, MemoryHandle*) {
+  return false;
+}
+bool read_goal_memory(u8*, int, u32, const DebugContext&, const MemoryHandle&) {
+  return false;
+}
+bool write_goal_memory(const u8*, int, u32, const DebugContext&, const MemoryHandle&) {
+  return false;
+}
+bool check_stopped(const ThreadID&, SignalInfo*) {
   return false;
 }
 #endif

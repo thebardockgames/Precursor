@@ -85,7 +85,10 @@ bool XSocketServer::init_server(bool failure_may_occur) {
     return false;
   }
 
-  if (listen(listening_socket, 0) < 0) {
+  // Backlog 1, not 0: on the Android 6.6 kernel (native x86_64 and ARM64 under translation alike),
+  // a socket listening with backlog 0 never completes a connection, so the REPL could never
+  // attach to the game there. Verified with a minimal listen/select/accept test. (AI-assisted)
+  if (listen(listening_socket, 1) < 0) {
     if (failure_may_occur) {
       lg::debug("[XSocketServer:{}] failed to listen", tcp_port);
     } else {

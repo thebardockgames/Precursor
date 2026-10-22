@@ -1,0 +1,11 @@
+# Machine-specific (Android SDK path) - regenerate with your own via `sdk.dir=...`.
+local.properties
+
+# Gradle/AGP/CMake build outputs - all regenerated from source.
+.gradle/
+.cxx/
+build/
+app/build/
+app/.cxx/
+*.iml
+.idea/

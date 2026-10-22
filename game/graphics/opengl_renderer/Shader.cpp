@@ -17,6 +17,30 @@ Shader::Shader(const std::string& shader_name, GameVersion version) : m_name(sha
   auto frag_src =
       file_util::read_text_file(file_util::get_file_path({shader_folder, shader_name + ".frag"}));
 
+#ifdef __ANDROID__
+  // All shader source files are shared across every platform and hardcode `#version 410 core`
+  // (desktop GLSL) - swapped for real GLSL ES here at load time, the same way HEIGHT_SCALE/
+  // SCISSOR_HEIGHT/SCISSOR_ADJUST below are already runtime-substituted, rather than maintaining
+  // two copies of 92 shader files. GLSL ES has no default float/int precision in fragment shaders
+  // (vertex shaders default to highp already) and no default sampler precision either - declaring
+  // highp for every sampler type used anywhere in this codebase is harmless even in files that
+  // don't use that particular type. See the development notes' "Android GLES 3.2 renderer port"
+  // section for the full audit of what shader-body changes this project's shaders also needed
+  // (those are NOT platform-specific and are already baked into the .vert/.frag files directly -
+  // this substitution only handles the one genuinely platform-specific line, the version header).
+  static const std::string kGlesHeader =
+      "#version 320 es\n"
+      "precision highp float;\n"
+      "precision highp int;\n"
+      "precision highp sampler2D;\n"
+      "precision highp sampler2DArray;\n"
+      "precision highp samplerCube;\n"
+      "precision highp sampler2DShadow;\n"
+      "precision highp sampler3D;\n";
+  vert_src = std::regex_replace(vert_src, std::regex("#version 410 core"), kGlesHeader);
+  frag_src = std::regex_replace(frag_src, std::regex("#version 410 core"), kGlesHeader);
+#endif
+
   vert_src = std::regex_replace(vert_src, std::regex("HEIGHT_SCALE"), height_scale);
   vert_src = std::regex_replace(vert_src, std::regex("SCISSOR_HEIGHT"), scissor_height);
   frag_src = std::regex_replace(frag_src, std::regex("SCISSOR_HEIGHT"), scissor_height);

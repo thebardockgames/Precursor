@@ -1,5 +1,7 @@
 # Set a more convenient ARM flag
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+# NOTE: devkitA64's toolchain reports CMAKE_SYSTEM_PROCESSOR as "aarch64" (standard GNU triple
+# naming), not Apple's "arm64" - both need to match here.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
     set(ARM64_ARCH TRUE)
     message(STATUS "ARM64 architecture detected")
 else()
@@ -12,7 +14,14 @@ if(ARM64_ARCH)
     set(OG_ASM_FUNCS_FILE kernel/asm_funcs_arm64.s)
     enable_language(ASM)
     set(CMAKE_ASM_SOURCE_FILE_EXTENSIONS ${CMAKE_ASM_SOURCE_FILE_EXTENSIONS} s)
-    set_source_files_properties(${OG_ASM_FUNCS_FILE} PROPERTIES COMPILE_FLAGS "-arch arm64 -g")
+    if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+        # -arch is a Clang/Apple-only flag - GNU as (devkitA64) doesn't understand it and needs
+        # no explicit arch flag here since the cross-compiler's own target triple already implies
+        # aarch64.
+        set_source_files_properties(${OG_ASM_FUNCS_FILE} PROPERTIES COMPILE_FLAGS "-g")
+    else()
+        set_source_files_properties(${OG_ASM_FUNCS_FILE} PROPERTIES COMPILE_FLAGS "-arch arm64 -g")
+    endif()
 else()
     set(OG_ASM_FUNCS_FILE kernel/asm_funcs_x86_64.asm)
     enable_language(ASM_NASM)
@@ -342,6 +351,7 @@ set(RUNTIME_SOURCE
         system/hid/display_manager.cpp
         system/hid/input_bindings.cpp
         system/hid/input_manager.cpp
+        system/hid/android_touch_controls.cpp
         system/hid/sdl_util.cpp
         system/IOP_Kernel.cpp
         system/iop_thread.cpp
@@ -355,11 +365,54 @@ set(RUNTIME_SOURCE
 add_subdirectory(sound)
 
 # we build the runtime as a static library.
-add_library(runtime STATIC ${RUNTIME_SOURCE} "../third-party/glad/src/glad.c")
+if(ANDROID)
+    # No glad on Android - real GLES entry points are directly linkable symbols (see
+    # game/graphics/pipelines/opengl.h), so there's no loader to build/link at all.
+    add_library(runtime STATIC ${RUNTIME_SOURCE})
+else()
+    add_library(runtime STATIC ${RUNTIME_SOURCE} "../third-party/glad/src/glad.c")
+endif()
 
-target_link_libraries(runtime common fmt SDL3::SDL3 imgui discord-rpc sound stb_image libco libcurl)
+if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # No open SDL3 backend for Switch (see the development notes) - uses devkitPro's SDL2 fork
+    # instead. No Discord client or libcurl portlib on Switch either - both are stubbed out at
+    # their one/two call sites (game/external/discord.cpp, game/system/background_worker.cpp)
+    # rather than linked.
+    target_link_libraries(runtime common fmt SDL2::SDL2-static imgui sound stb_image libco)
+elseif(ANDROID)
+    # SDL3 has real, official Android support (unlike Switch) - no SDL2 downgrade needed here.
+    # No Discord client to reach from a phone and no libcurl build set up for Android yet - both
+    # stubbed at their call sites, same as Switch (see the development notes).
+    #
+    # Two different Android consumers of this same game/CMakeLists.txt need different SDL3
+    # linkage: scripts/android-port/cmake-poc builds a plain `adb shell`-launched executable and
+    # forces the static SDL3::SDL3-static target (one self-contained binary, no .so to push
+    # separately); scripts/android-port/apk builds a real installable APK, where the native code
+    # is loaded via JNI as a shared library and SDL3 itself must be a separate loadable
+    # libSDL3.so (SDLActivity.java's loadLibraries() loads "SDL3" before "main") - that project
+    # only defines the SDL3::SDL3 (shared) target. Pick whichever one the including project
+    # actually built rather than hardcoding one, so both stay working.
+    if(TARGET SDL3::SDL3-static)
+        target_link_libraries(runtime common fmt SDL3::SDL3-static imgui sound stb_image libco)
+    else()
+        target_link_libraries(runtime common fmt SDL3::SDL3 imgui sound stb_image libco)
+    endif()
+else()
+    target_link_libraries(runtime common fmt SDL3::SDL3 imgui discord-rpc sound stb_image libco libcurl)
+endif()
 if(WIN32)
     target_link_libraries(runtime mman)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # newlib's dl (dlopen) doesn't exist on Switch; pthread does (newlib provides libpthread.a).
+    target_link_libraries(runtime pthread)
+elseif(ANDROID)
+    # bionic has never had a separate libpthread - those symbols live directly in libc (there's
+    # no "-lpthread" to find), unlike glibc/newlib. dlopen() is real and does need linking though.
+    # imgui's OpenGL3 backend auto-selects IMGUI_IMPL_OPENGL_ES3 for __ANDROID__ (see
+    # imgui_impl_opengl3.h) and links directly against real GLES3 entry points like
+    # glGenVertexArrays/glBindVertexArray - those live in libGLESv3's stub, a separate one from
+    # the libGLESv1_CM/libGLESv2 SDL's own CMakeLists.txt already links.
+    target_link_libraries(runtime dl GLESv3)
 else()
     target_link_libraries(runtime pthread dl)
 endif()
@@ -368,4 +421,17 @@ add_executable(gk main.cpp)
 target_link_libraries(gk runtime)
 if(WIN32)
     set_target_properties(gk PROPERTIES VS_DPI_AWARE "PerMonitor")
+endif()
+
+# Real installable Android APK entry point (scripts/android-port/apk only - OFF by default,
+# doesn't affect the PC build or the headless scripts/android-port/cmake-poc executable). Android
+# JNI loads native code as a shared library, not an executable - SDLActivity.java's
+# getMainSharedObject()/getMainFunction() expect a "libmain.so" exporting a real "SDL_main" symbol
+# (SDL3/SDL_main.h #define's main to SDL_main when included, so the same main.cpp works
+# unchanged - see main.cpp's own matching OPENGOAL_ANDROID_APK_BUILD guard around that include).
+option(OPENGOAL_ANDROID_APK_BUILD "Build the 'main' shared library for a real Android APK (scripts/android-port/apk) instead of/alongside the headless 'gk' executable" OFF)
+if(OPENGOAL_ANDROID_APK_BUILD)
+    add_library(main SHARED main.cpp)
+    target_compile_definitions(main PRIVATE OPENGOAL_ANDROID_APK_BUILD)
+    target_link_libraries(main runtime)
 endif()

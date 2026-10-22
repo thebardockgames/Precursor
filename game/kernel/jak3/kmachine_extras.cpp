@@ -19,6 +19,10 @@ namespace kmachine_extras {
 AutoSplitterBlock g_auto_splitter_block_jak3;
 
 void update_discord_rpc(u32 discord_info) {
+#if defined(__SWITCH__) || defined(__ANDROID__)
+  // No Discord client to update on either target.
+  (void)discord_info;
+#else
   if (gDiscordRpcEnabled) {
     DiscordRichPresence rpc;
     char state[128] = {};
@@ -153,6 +157,7 @@ void update_discord_rpc(u32 discord_info) {
   } else {
     Discord_ClearPresence();
   }
+#endif
 }
 
 void pc_set_levels(u32 lev_list) {

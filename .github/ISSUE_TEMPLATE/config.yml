@@ -1,8 +1,7 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Feature Requests and Ideas
-    url: https://github.com/open-goal/jak-project/discussions/new/choose
-    about: Please use the discussion board to bring up feature requests and ideas. If there is interest in them, they can then be converted to an issue(s).
-  - name: Discord Help Channel
-    url: https://discord.gg/dPRCfsju3N
-    about: The best place for general help and asking questions.
+  # This is an unofficial Android fork: Android problems go to the "Android beta bug" form above,
+  # never to the OpenGOAL team. (AI-assisted)
+  - name: OpenGOAL (PC) - proyecto original / original project
+    url: https://github.com/open-goal/jak-project
+    about: Solo para la versión oficial de PC. No reportes allí problemas de este fork de Android.

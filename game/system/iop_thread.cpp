@@ -1,6 +1,7 @@
 #include "iop_thread.h"
 
 #include "common/global_profiler/GlobalProfiler.h"
+#include "common/log/log.h"
 
 #ifdef __linux__
 #include <unistd.h>
@@ -60,8 +61,18 @@ void* IOP::iop_alloc(int size) {
 void IOP::wait_run_iop(
     std::chrono::time_point<std::chrono::steady_clock, std::chrono::microseconds> wakeup) {
   auto p = scoped_prof("krnlw");
+  static u64 j3_intro_wait_calls = 0;
+  auto before = std::chrono::steady_clock::now();
   std::unique_lock<std::mutex> lk(run_cv_mutex);
   iop_run_cv.wait_until(lk, wakeup);
+  auto after = std::chrono::steady_clock::now();
+  j3_intro_wait_calls++;
+  auto elapsed_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(after - before).count();
+  if ((j3_intro_wait_calls & 0xff) == 0 || elapsed_us < 10) {
+    lg::trace("[J3-INTRO-NATIVE] wait_run_iop call #{} elapsed_us={}", j3_intro_wait_calls,
+              elapsed_us);
+  }
 }
 
 void IOP::kill_from_ee() {

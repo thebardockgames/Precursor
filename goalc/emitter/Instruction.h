@@ -59,7 +59,7 @@ constexpr s64 pow2s(u64 n) {
 
 constexpr Field Hw(u32 x) {
   ASSERT(x >= 0 && x <= (4 - 1));
-  return Field{(x & 4) << 21};
+  return Field{(x & 0b11) << 21};
 }
 
 constexpr Field Sh(u32 x) {
@@ -68,8 +68,13 @@ constexpr Field Sh(u32 x) {
 }
 
 constexpr Field Shift(u32 x) {
+  // Same class of bug as Hw() above (found and fixed the same way, same session): masked with a
+  // single bit (2, i.e. 0b10) instead of the real 2-bit field width (0b11) the ASSERT bound
+  // already implies - x=1 or x=3 would have silently lost their low bit. No real-world impact
+  // found (grepped: this function has no callers anywhere in the codebase currently), but fixed
+  // as a latent landmine for whenever it does get used.
   ASSERT(x >= 0 && x <= (4 - 1));
-  return Field{(x & 2) << 22};
+  return Field{(x & 0b11) << 22};
 }
 
 constexpr Field Rd(u32 x) {
@@ -92,13 +97,36 @@ constexpr Field Rm(u32 x) {
   return Field{(x & 31) << 16};
 }
 
+// The third source register of a "data-processing (3 source)" instruction (MADD/MSUB and
+// friends), e.g. `MSUB <Wd>, <Wn>, <Wm>, <Wa>` computes Wd = Wa - Wn*Wm.
+constexpr Field Ra(u32 x) {
+  ASSERT(x >= 0 && x <= (32 - 1));
+  return Field{(x & 31) << 10};
+}
+
+// "Advanced SIMD copy" instructions (e.g. DUP (element)) encode both the operand size and its
+// lane index into one 5-bit imm5 field: the position of the lowest set bit selects the size
+// (bit0=byte, bit1=halfword, bit2=word/single-float, bit3=doubleword), and the bits above that
+// carry the index. See splat_vf() in IGenARM64.cpp for the one caller.
+constexpr Field Imm5(u32 x) {
+  ASSERT(x >= 0 && x <= (pow2(5) - 1));
+  return Field{(x & 0b11111) << 16};
+}
+
 constexpr Field Imm4(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 4) - 1));
+  // NOTE: was previously "(2 ^ 4) - 1" - `^` is bitwise XOR in C++, not exponentiation, so this
+  // assert was checking x <= 1 (2 XOR 4 XOR 1... actually 2^4=6, -1=5) instead of x <= 15. Fixed
+  // to the real 4-bit bound; the mask/shift below are unrelated and unchanged.
+  ASSERT(x >= 0 && x <= (pow2(4) - 1));
   return Field{(x & 0b111111) << 11};
 }
 
 constexpr Field Imm6(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 6)));
+  // Off-by-one: pow2(6) is 64, one past the real max value a 6-bit field can hold (63) - would
+  // let x=64 silently pass the assert and then get masked down to 0 by `& 0b111111` instead of
+  // being rejected. Every real caller currently passes a compile-time-constant 0, so this has had
+  // no observed impact, but fixed to the real bound.
+  ASSERT(x >= 0 && x <= (pow2(6) - 1));
   return Field{(x & 0b111111) << 10};
 }
 
@@ -113,8 +141,11 @@ constexpr Field Imm12(u32 x) {
 }
 
 constexpr Field Imm16(u32 x) {
+  // Bits [20:5] - the imm16 field of MOVZ/MOVK (the only callers). Was shifted by 16 instead of
+  // 5, landing the value 11 bits too high - i.e. every encoded immediate came out as
+  // value * 2048. See "method_id scaled by 2048" in the development notes for how this was found.
   ASSERT(x >= 0 && x <= (pow2(16) - 1));
-  return Field{static_cast<u32>((x & (pow2(16) - 1)) << 16)};
+  return Field{static_cast<u32>((x & (pow2(16) - 1)) << 5)};
 }
 
 constexpr Field Imm26(u32 x) {
@@ -123,7 +154,9 @@ constexpr Field Imm26(u32 x) {
 }
 
 constexpr Field Imm19(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 19) - 1));
+  // Was "(2 ^ 19) - 1" - `^` is bitwise XOR in C++, not exponentiation (2 XOR 19 = 17, so this
+  // asserted x <= 16 instead of the real 19-bit bound x <= 524287).
+  ASSERT(x >= 0 && x <= (pow2(19) - 1));
   return Field{(static_cast<uint32_t>(x) & 0b1111111111111111111) << 5};
 }
 
@@ -138,27 +171,30 @@ constexpr Field Immhi(u32 x) {
 }
 
 constexpr Field Imms(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 6) - 1));
+  // All four asserts below had the same "(2 ^ N) - 1" bug: `^` is bitwise XOR in C++, not
+  // exponentiation, so each was checking a wrong (usually much smaller) bound than the real N-bit
+  // field width. Fixed to pow2(N) - 1.
+  ASSERT(x >= 0 && x <= (pow2(6) - 1));
   return Field{(static_cast<uint32_t>(x) & 0b111111) << 10};
 }
 
 constexpr Field Immr(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 6) - 1));
+  ASSERT(x >= 0 && x <= (pow2(6) - 1));
   return Field{(static_cast<uint32_t>(x) & 0b111111) << 16};
 }
 
 constexpr Field Immh(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 4) - 1));
+  ASSERT(x >= 0 && x <= (pow2(4) - 1));
   return Field{(static_cast<uint32_t>(x) & 0b111111) << 19};
 }
 
 constexpr Field Immb(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 3) - 1));
+  ASSERT(x >= 0 && x <= (pow2(3) - 1));
   return Field{(static_cast<uint32_t>(x) & 0b111111) << 16};
 }
 
 constexpr Field Cond(u32 x) {
-  ASSERT(x >= 0 && x <= ((2 ^ 4) - 1));
+  ASSERT(x >= 0 && x <= (pow2(4) - 1));
   return Field{(static_cast<uint32_t>(x) & 0b1111) << 0};
 }
 }  // namespace ARM64
@@ -228,14 +264,48 @@ struct InstructionARM64 : InstructionImpl<InstructionARM64> {
     return count * 4;
   }
 
-  // TODO ARM - all placeholders, no idea if this is even relevant, if not, get rid of it all
+  // TODO ARM - get_imm_size/offset_of_imm are still placeholders, no idea if they're even
+  // relevant for anything ARM64-side calls. get_disp_size/offset_of_disp *are* real and used -
+  // see load_cross_seg_addr() below, which is the one place that sets m_disp_offset/m_disp_size
+  // (via with_disp()) so the object generator's existing cross-segment link-patching machinery
+  // (ObjectGenerator::emit_link_rip(), shared with x86 unchanged) can find and patch the plain
+  // 32/64-bit distance literal embedded in this instruction's own encoded words. Every other
+  // ARM64 instruction leaves these at the 0/0 default, same as before.
   int get_imm_size() const { return 0; }
 
   int offset_of_imm() const { return 0; }
 
-  int offset_of_disp() const { return 0; }
+  int offset_of_disp() const { return m_disp_offset; }
 
-  int get_disp_size() const { return 0; }
+  int get_disp_size() const { return m_disp_size; }
+
+  // Marks byte offset `byte_offset` (within this instruction's own encoded bytes) as a plain,
+  // patchable N-byte (4 or 8) little-endian distance value - see load_cross_seg_addr().
+  InstructionARM64& with_disp(uint8_t byte_offset, uint8_t size) {
+    m_disp_offset = byte_offset;
+    m_disp_size = size;
+    return *this;
+  }
+
+  // Marks this single-word instruction as a PC-relative branch whose target immediate needs
+  // patching once the destination address is known (see
+  // ObjectGenerator::handle_temp_jump_links()). Unlike x86's rel32 (a plain byte-aligned 4-byte
+  // literal - see offset_of_imm() above), ARM64 branch immediates are packed into specific bit
+  // ranges of the instruction word itself, are measured in *words* (4-byte units) not bytes, and
+  // (unlike x86, which is relative to the address of the *next* instruction) are relative to the
+  // address of the branch instruction itself. `width` is 19 for a conditional `B.cond` (the Imm19
+  // field, bits [23:5] - see je_imm()/jne_imm()/etc.) or 26 for an unconditional `B` (the Imm26
+  // field, bits [25:0] - see jmp_imm()).
+  InstructionARM64& with_branch_imm(uint8_t width) {
+    m_branch_imm_width = width;
+    return *this;
+  }
+  uint8_t branch_imm_width() const { return m_branch_imm_width; }
+
+ private:
+  uint8_t m_disp_offset = 0;
+  uint8_t m_disp_size = 0;
+  uint8_t m_branch_imm_width = 0;
 };
 
 /*!
@@ -1153,6 +1223,11 @@ struct InstructionX86 : InstructionImpl<InstructionX86> {
     return offset;
   }
 
+  // x86 jump patching goes through get_imm_size()/offset_of_imm() (a plain byte-aligned rel32
+  // immediate) instead - this always returns 0 on x86. See InstructionARM64::branch_imm_width()
+  // for why ARM64 branches need a different, non-byte-aligned patching scheme.
+  uint8_t branch_imm_width() const { return 0; }
+
   uint8_t emit(uint8_t* buffer) const {
     if (m_flags & kIsNull)
       return 0;
@@ -1275,6 +1350,10 @@ class Instruction {
 
   int offset_of_disp() const {
     return std::visit([](auto const& i) { return i.offset_of_disp(); }, instr);
+  }
+
+  uint8_t branch_imm_width() const {
+    return std::visit([](auto const& i) { return i.branch_imm_width(); }, instr);
   }
 };
 

@@ -10,6 +10,15 @@
 
 ;; DECOMP BEGINS
 
+;; The ARM64 die-state suspension uses 256 bytes (device crash: 256/128).
+;; Reserve room for that frame and margin before allocating the crate's heap
+;; objects; retain the original x86 budget. This is the backup, not CPU stack. (AI-assisted)
+(#cond
+  ((eq? TARGET_ARCH 'arm64)
+   (defconstant CRATE_BACKUP_STACK_SIZE 512))
+  (#t
+   (defconstant CRATE_BACKUP_STACK_SIZE 128)))
+
 (defskelgroup skel-crate-krimson crate crate-krimson-lod0-jg crate-idle-ja
               ((crate-krimson-lod0-mg (meters 20)) (crate-krimson-lod1-mg (meters 999999)))
               :bounds (static-spherem 0 1 0 1.6)
@@ -1012,7 +1021,7 @@
 ;; WARN: Return type mismatch crate vs none.
 (defmethod crate-init! ((this crate) (arg0 entity-actor))
   "Initialize the [[crate]] with the specified [[entity-actor]]."
-  (stack-size-set! (-> this main-thread) 128)
+  (stack-size-set! (-> this main-thread) CRATE_BACKUP_STACK_SIZE)
   (logior! (-> this mask) (process-mask crate))
   (let ((s4-0 (new 'process 'collide-shape-moving this (collide-list-enum usually-hit-by-player))))
     (set! (-> s4-0 dynam) (copy *standard-dynamics* 'process))

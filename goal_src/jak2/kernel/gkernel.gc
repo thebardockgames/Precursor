@@ -575,7 +575,7 @@
     (.push temp)    ;; stack now 16 + 8 aligned
     ;; and call the function!
     (.add func off)
-    (.jr func)
+    (.jr :stack-return #t func) ;; ARM64: continuation on stack becomes X30. (AI-assisted)
     )
   )
 
@@ -2283,7 +2283,7 @@
     (.mov :color #f a3 s4)
 
     (.add :color #f s0 off)
-    (.jr :color #f s0)
+    (.jr :color #f :stack-return #t s0) ;; Bootstrap consumes the stacked continuation. (AI-assisted)
 
     (.add a4 a4)
     (.add a5 a5)

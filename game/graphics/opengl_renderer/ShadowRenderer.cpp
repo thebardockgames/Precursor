@@ -378,6 +378,9 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
     glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);  // increment on depth pass.
     glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
 
+#ifndef __ANDROID__
+    // glPolygonMode(GL_LINE) has no GLES equivalent - see the identical skip + full explanation
+    // in CollideMeshRenderer.cpp. Debug-only wireframe overlay, not gameplay-required.
     if (m_debug_draw_volume) {
       glDisable(GL_BLEND);
       glUniform4f(
@@ -388,6 +391,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
       glEnable(GL_BLEND);
     }
+#endif
     prof.add_draw_call();
     prof.add_tri(m_next_back_index / 3);
   }
@@ -403,6 +407,8 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
     glStencilFunc(GL_ALWAYS, 0, 0);
     glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);  // decrement on depth pass.
     glDrawElements(GL_TRIANGLES, m_next_back_index, GL_UNSIGNED_INT, nullptr);
+#ifndef __ANDROID__
+    // See the identical skip + full explanation just above (front pass).
     if (m_debug_draw_volume) {
       glDisable(GL_BLEND);
       glUniform4f(
@@ -413,6 +419,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
       glEnable(GL_BLEND);
     }
+#endif
 
     prof.add_draw_call();
     prof.add_tri(m_next_front_index / 3);

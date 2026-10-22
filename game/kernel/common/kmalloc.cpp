@@ -86,7 +86,8 @@ Ptr<kheapinfo> kheapstatus(Ptr<kheapinfo> heap) {
       heap->top_base - heap->base, NumSymbols, max_symbols(g_game_version));
 
   if (heap == kglobalheap) {
-    Msg(6, "\t %d bytes before stack\n", GLOBAL_HEAP_END - heap->current.offset);
+    // Use the actual game's heap limit, including Jak 2's ARM64 budget. (AI-assisted)
+    Msg(6, "\t %d bytes before heap limit\n", heap->top - heap->current);
   }
 
   for (int i = 0; i < NUM_CATEGORIES; i++) {

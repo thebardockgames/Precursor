@@ -19,6 +19,35 @@
 using namespace jak1_symbols;
 using namespace jak1;
 
+TEST(Kernel, jak2_heap_budget) {
+  // Jak 2 may expand only into the unused gap, never the debug heap or stack. (AI-assisted)
+  EXPECT_GT(jak2::ARM64_GLOBAL_HEAP_END, ::GLOBAL_HEAP_END);
+  EXPECT_EQ(DEBUG_HEAP_START - jak2::ARM64_GLOBAL_HEAP_END, 8 * 1024 * 1024);
+  EXPECT_LE(DEBUG_HEAP_START + jak2::DEBUG_HEAP_SIZE,
+            EE_MAIN_MEM_SIZE - DEBUG_HEAP_SPACE_FOR_STACK);
+#ifdef __aarch64__
+  EXPECT_EQ(jak2::GLOBAL_HEAP_END,
+            BIG_MEMORY ? jak2::ARM64_GLOBAL_HEAP_END : ::GLOBAL_HEAP_END);
+#else
+  EXPECT_EQ(jak2::GLOBAL_HEAP_END, ::GLOBAL_HEAP_END);
+#endif
+}
+
+TEST(Kernel, format_option_defaults) {
+  kprint_init_globals_common();
+  format_struct options;
+  options.reset();
+  for (const auto option : options.data) {
+    EXPECT_EQ(option, -1);
+  }
+  char output[32] = {};
+  kitoa(output, 42, 10, options.data[0], ' ', 0);
+  EXPECT_STREQ(output, "42");
+  options.data[0] = 't';
+  options.data[1] = 0;
+  EXPECT_STREQ(options.c_str(), "t");
+}
+
 TEST(Kernel, strend) {
   char test[] = "test";
   char* end = strend(test);

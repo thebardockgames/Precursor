@@ -43,7 +43,16 @@ struct SharedRenderState {
   bool use_occlusion_culling = true;
   math::Vector<u8, 4> fog_color = math::Vector<u8, 4>{0, 0, 0, 0};
   float fog_intensity = 1.f;
+#ifdef __ANDROID__
+  // glMultiDrawElements() doesn't exist in GLES core (GL_EXT_multi_draw_arrays covers a
+  // multi-draw *arrays* call, not elements, and isn't guaranteed present anyway) - default to the
+  // single-draw-call fallback path every multidraw call site already has (originally added as a
+  // debug/compatibility toggle, not for this), rather than teaching every call site a real
+  // GLES-side multi-draw emulation loop.
+  bool no_multidraw = true;
+#else
   bool no_multidraw = false;
+#endif
 
   void reset();
   bool has_pc_data = false;

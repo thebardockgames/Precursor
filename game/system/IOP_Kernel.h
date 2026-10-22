@@ -240,4 +240,9 @@ class IOP_Kernel {
   std::mutex sif_mtx, wakeup_mtx;
 
   time_stamp m_start_time;
+
+  // Cross-call counter (see the comment in dispatch()): a runaway thread can keep the
+  // scheduler busy across many separate dispatch() calls, each individually short, without
+  // any single call looping long enough to trip a per-call guard. (AI-assisted)
+  int iters_since_forced_yield = 0;
 };

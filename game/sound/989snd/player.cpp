@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: ISC
 #include "player.h"
 
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 
 #include "sfxblock.h"
@@ -15,6 +17,57 @@
 #endif
 #include "common/log/log.h"
 
+#ifdef __ANDROID__
+#include <jni.h>
+
+namespace {
+// Cubeb is independent of SDL's audio devices, so SDLActivity's native pause
+// does not stop it. Serialize lifecycle changes with registration/destruction;
+// never access the global Player from the Android UI thread. (AI-assisted)
+std::mutex android_audio_mutex;
+bool android_audio_active = true;  // Standalone/headless Android keeps existing behavior.
+std::map<cubeb_stream*, bool> android_audio_streams;
+
+int set_android_stream_active(cubeb_stream* stream, bool& running, bool active) {
+  if (running == active) {
+    return CUBEB_OK;
+  }
+  const int result = active ? cubeb_stream_start(stream) : cubeb_stream_stop(stream);
+  if (result == CUBEB_OK) {
+    running = active;
+    lg::info("Android audio {}", active ? "resumed (foreground)" : "paused (background)");
+  } else {
+    lg::error("Android audio {} failed: {}", active ? "resume" : "pause", result);
+  }
+  return result;
+}
+
+int register_android_audio(cubeb_stream* stream) {
+  std::lock_guard<std::mutex> lock(android_audio_mutex);
+  auto [it, inserted] = android_audio_streams.try_emplace(stream, false);
+  return set_android_stream_active(stream, it->second, android_audio_active);
+}
+
+void unregister_android_audio(cubeb_stream* stream) {
+  std::lock_guard<std::mutex> lock(android_audio_mutex);
+  auto it = android_audio_streams.find(stream);
+  if (it != android_audio_streams.end()) {
+    set_android_stream_active(stream, it->second, false);
+    android_audio_streams.erase(it);
+  }
+}
+}  // namespace
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_opengoalandroid_jak1_Jak1Activity_nativeSetAudioActive(JNIEnv*, jclass, jboolean active) {
+  std::lock_guard<std::mutex> lock(android_audio_mutex);
+  android_audio_active = active == JNI_TRUE;
+  for (auto& [stream, running] : android_audio_streams) {
+    set_android_stream_active(stream, running, android_audio_active);
+  }
+}
+#endif
+
 namespace snd {
 
 u8 g_global_excite = 0;
@@ -27,6 +80,96 @@ Player::~Player() {
   DestroyCubeb();
 }
 
+#ifdef __SWITCH__
+void Player::InitCubeb() {
+  InitAudout();
+}
+
+void Player::DestroyCubeb() {
+  DestroyAudout();
+}
+
+void Player::InitAudout() {
+  Result rc = audoutInitialize();
+  if (R_FAILED(rc)) {
+    lg::error("audout init failed: 0x{:x}", rc);
+    return;
+  }
+
+  u32 sample_rate_out = 0, channel_count_out = 0;
+  PcmFormat format_out;
+  AudioOutState state_out;
+  rc = audoutOpenAudioOut(nullptr, nullptr, 48000, 2, &sample_rate_out, &channel_count_out,
+                          &format_out, &state_out);
+  if (R_FAILED(rc)) {
+    lg::error("audoutOpenAudioOut failed: 0x{:x}", rc);
+    audoutExit();
+    return;
+  }
+  // Expected to always be 48000Hz/2ch/Int16 on real hardware, but log if that's ever not true
+  // rather than silently mismatching this player's hardcoded synth output format.
+  lg::info("audout opened: {}Hz, {}ch, format {}", sample_rate_out, channel_count_out,
+           (int)format_out);
+
+  const u64 buffer_size_bytes = kAudoutBufferFrames * sizeof(s16Output);
+  // audout buffers must be aligned to (and sized as a multiple of) 0x1000 bytes.
+  const u64 aligned_buffer_size = (buffer_size_bytes + 0xFFF) & ~0xFFFULL;
+  for (u32 i = 0; i < kAudoutBufferCount; i++) {
+    mAudoutBufferMem[i] = aligned_alloc(0x1000, aligned_buffer_size);
+    memset(mAudoutBufferMem[i], 0, aligned_buffer_size);
+    mAudoutBuffers[i].next = nullptr;
+    mAudoutBuffers[i].buffer = mAudoutBufferMem[i];
+    mAudoutBuffers[i].buffer_size = aligned_buffer_size;
+    mAudoutBuffers[i].data_size = buffer_size_bytes;
+    mAudoutBuffers[i].data_offset = 0;
+  }
+
+  rc = audoutStartAudioOut();
+  if (R_FAILED(rc)) {
+    lg::error("audoutStartAudioOut failed: 0x{:x}", rc);
+    return;
+  }
+
+  // Queue all buffers up front so playback has something queued immediately.
+  for (u32 i = 0; i < kAudoutBufferCount; i++) {
+    Tick((s16Output*)mAudoutBuffers[i].buffer, kAudoutBufferFrames);
+    audoutAppendAudioOutBuffer(&mAudoutBuffers[i]);
+  }
+
+  mAudoutRunning = true;
+  mAudoutThread = std::thread(&Player::AudoutThreadFunc, this);
+}
+
+void Player::DestroyAudout() {
+  mAudoutRunning = false;
+  if (mAudoutThread.joinable()) {
+    mAudoutThread.join();
+  }
+  audoutStopAudioOut();
+  audoutExit();
+  for (u32 i = 0; i < kAudoutBufferCount; i++) {
+    if (mAudoutBufferMem[i]) {
+      free(mAudoutBufferMem[i]);
+      mAudoutBufferMem[i] = nullptr;
+    }
+  }
+}
+
+void Player::AudoutThreadFunc() {
+  while (mAudoutRunning) {
+    AudioOutBuffer* released = nullptr;
+    u32 released_count = 0;
+    // 100ms timeout so we notice mAudoutRunning going false promptly instead of blocking
+    // indefinitely on the last buffer.
+    Result rc = audoutWaitPlayFinish(&released, &released_count, 100'000'000ULL);
+    if (R_FAILED(rc) || released_count == 0 || !released) {
+      continue;
+    }
+    Tick((s16Output*)released->buffer, kAudoutBufferFrames);
+    audoutAppendAudioOutBuffer(released);
+  }
+}
+#else
 void Player::InitCubeb() {
 #ifdef _WIN32
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -38,7 +181,12 @@ void Player::InitCubeb() {
   }
 #endif
 
-  cubeb_init(&mCtx, "OpenGOAL", nullptr);
+  s32 err = cubeb_init(&mCtx, "OpenGOAL", nullptr);
+  if (err != CUBEB_OK) {
+    lg::error("Cubeb context initialization failed: {}", err);
+    return;
+  }
+  lg::info("Cubeb audio backend: {}", cubeb_get_backend_id(mCtx));
 
   cubeb_stream_params outparam = {};
   outparam.channels = 2;
@@ -47,32 +195,60 @@ void Player::InitCubeb() {
   outparam.layout = CUBEB_LAYOUT_STEREO;
   outparam.prefs = CUBEB_STREAM_PREF_NONE;
 
-  s32 err = 0;
   u32 latency = 0;
   err = cubeb_get_min_latency(mCtx, &outparam, &latency);
+#ifdef __ANDROID__
+  if (err == CUBEB_ERROR_NOT_SUPPORTED) {
+    // OpenSL has no latency query. Keep its 10 ms quantum: larger batches make
+    // spooled-animation position updates coarse and hold mTickLock longer. The
+    // APK now optimizes the synth instead of compensating with 43 ms batches.
+    // Audio is required for the intro's spooled-animation clock. (AI-assisted)
+    latency = 480;
+    err = CUBEB_OK;
+    lg::info("Cubeb latency query unavailable; using {} frames", latency);
+  }
+#endif
   if (err != CUBEB_OK) {
-    lg::error("Cubeb init failed");
+    lg::error("Cubeb minimum latency query failed: {}", err);
     return;
   }
 
   err = cubeb_stream_init(mCtx, &mStream, "OpenGOAL", nullptr, nullptr, nullptr, &outparam, latency,
                           &sound_callback, &state_callback, this);
   if (err != CUBEB_OK) {
-    lg::error("Cubeb init failed");
+    lg::error("Cubeb stream initialization failed: {}", err);
     return;
   }
 
+#ifdef __ANDROID__
+  // Register even if the app was minimized while initializing the stream.
+  // onResume will start it later without discarding synth/animation state.
+  err = register_android_audio(mStream);
+#else
   err = cubeb_stream_start(mStream);
+#endif
   if (err != CUBEB_OK) {
-    lg::error("Cubeb init failed");
+    lg::error("Cubeb stream start failed: {}", err);
     return;
   }
+  lg::info("Cubeb audio stream ready ({} Hz, {} latency frames)", outparam.rate, latency);
 }
 
 void Player::DestroyCubeb() {
-  cubeb_stream_stop(mStream);
-  cubeb_stream_destroy(mStream);
-  cubeb_destroy(mCtx);
+  // Initialization can stop before either object exists. (AI-assisted)
+  if (mStream) {
+#ifdef __ANDROID__
+    unregister_android_audio(mStream);
+#else
+    cubeb_stream_stop(mStream);
+#endif
+    cubeb_stream_destroy(mStream);
+    mStream = nullptr;
+  }
+  if (mCtx) {
+    cubeb_destroy(mCtx);
+    mCtx = nullptr;
+  }
 #ifdef _WIN32
   if (m_coinitialized) {
     CoUninitialize();
@@ -93,6 +269,7 @@ long Player::sound_callback([[maybe_unused]] cubeb_stream* stream,
 void Player::state_callback([[maybe_unused]] cubeb_stream* stream,
                             [[maybe_unused]] void* user,
                             [[maybe_unused]] cubeb_state state) {}
+#endif
 
 void Player::Tick(s16Output* stream, int samples) {
   std::scoped_lock lock(mTickLock);

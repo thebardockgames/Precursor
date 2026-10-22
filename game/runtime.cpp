@@ -4,10 +4,12 @@
  */
 
 #include "common/common_types.h"
-#ifdef OS_POSIX
+#if defined(OS_POSIX) && !defined(__SWITCH__)
 #include <unistd.h>
 
 #include <sys/mman.h>
+#elif defined(__SWITCH__)
+#include "common/util/switch_compat.h"
 #elif _WIN32
 #include <io.h>
 
@@ -87,6 +89,9 @@
 #include "system/SystemThread.h"
 
 u8* g_ee_main_mem = nullptr;
+#ifdef __SWITCH__
+static Jit g_ee_jit;
+#endif
 std::thread::id g_main_thread_id = std::thread::id();
 GameVersion g_game_version = GameVersion::Jak1;
 BackgroundWorker g_background_worker;
@@ -156,7 +161,34 @@ void ee_runner(SystemThreadInterface& iface) {
   //
   // The solution to this is to flip-flop between permissions, or perhaps have two threads
   // one that has writing permission, and another with executable permission
+#ifdef __SWITCH__
+  // Horizon enforces W^X at the kernel level - there's no single mapping that's
+  // simultaneously writable and executable like on Linux/macOS/Windows. jitCreate() instead
+  // gives two aliases (rw_addr, rx_addr) of the same physical pages, and the buffer's
+  // permission state has to be transitioned between them with jitTransitionTo{Writable,
+  // Executable}(). Also: no fixed-address placement (EE_MAIN_MEM_MAP is ignored here), the
+  // OS picks the address.
+  //
+  // g_ee_main_mem is pointed at the writable alias, since the overwhelming majority of GOAL
+  // heap traffic is data reads/writes, not code execution. This is NOT yet a complete port:
+  // whatever call sites actually jump into freshly-compiled GOAL code as native function
+  // pointers still need auditing to go through jitGetRxAddr(&g_ee_jit) instead, with a
+  // jitTransitionToExecutable() call before doing so (and back to writable before the GOAL
+  // compiler/REPL patches code again). See the development notes.
+  if (R_FAILED(jitCreate(&g_ee_jit, EE_MAIN_MEM_SIZE))) {
+    lg::debug("Failed to initialize main memory! jitCreate failed");
+    iface.initialization_complete();
+    return;
+  }
+  if (R_FAILED(jitTransitionToWritable(&g_ee_jit))) {
+    lg::debug("Failed to initialize main memory! jitTransitionToWritable failed");
+    iface.initialization_complete();
+    return;
+  }
+  g_ee_main_mem = (u8*)jitGetRwAddr(&g_ee_jit);
+#else
   if (EE_MEM_LOW_MAP) {
+#if defined(__x86_64__) || defined(__i386__)
     g_ee_main_mem =
         (u8*)mmap((void*)0x10000000, EE_MAIN_MEM_SIZE, PROT_EXEC | PROT_READ | PROT_WRITE,
 #ifdef __APPLE__
@@ -164,6 +196,15 @@ void ee_runner(SystemThreadInterface& iface) {
                   MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE, 0, 0);
 #else
                   MAP_ANONYMOUS | MAP_32BIT | MAP_PRIVATE | MAP_POPULATE, 0, 0);
+#endif
+#else
+    // MAP_32BIT is an x86/x86_64-only Linux mmap flag (no ARM64 equivalent - there's no hardware
+    // notion of a "low 32-bit" address region to request on this ISA). EE_MEM_LOW_MAP is
+    // compile-time false today so this branch is dead in practice, but it still has to compile -
+    // map normally instead, same as the non-low-map branch below.
+    g_ee_main_mem =
+        (u8*)mmap((void*)EE_MAIN_MEM_MAP, EE_MAIN_MEM_SIZE, PROT_EXEC | PROT_READ | PROT_WRITE,
+                  MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
 #endif
   } else {
     g_ee_main_mem =
@@ -176,6 +217,7 @@ void ee_runner(SystemThreadInterface& iface) {
     iface.initialization_complete();
     return;
   }
+#endif
 
   lg::debug("Main memory mapped at 0x{:016x}", (u64)(g_ee_main_mem));
   lg::debug("Main memory size 0x{:x} bytes ({:.3f} MB)", EE_MAIN_MEM_SIZE,
@@ -190,7 +232,13 @@ void ee_runner(SystemThreadInterface& iface) {
   // prevent access to the first 512 kB of memory.
   // On the PS2 this is the kernel and can't be accessed either.
   // this may not work well on systems with a page size > 1 MB.
+#ifndef __SWITCH__
   mprotect((void*)g_ee_main_mem, EE_MAIN_MEM_LOW_PROTECT, PROT_NONE);
+#else
+  // libnx's jit.h only exposes permission transitions for the whole buffer, not sub-ranges,
+  // so this debugging aid (turning a low-memory bug into an immediate crash) is skipped here.
+  // Not required for correctness, just loses an early bug-catching signal.
+#endif
   fileio_init_globals();
   jak1::kboot_init_globals();
   jak2::kboot_init_globals();
@@ -480,7 +528,13 @@ RuntimeExitStatus exec_runtime(GameLaunchOptions game_options, int argc, const c
     Gfx::Exit();
   }
   lg::info("GOAL Runtime Shutdown (code {})", fmt::underlying(MasterExit));
+#ifdef __SWITCH__
+  jitClose(&g_ee_jit);
+#else
   munmap(g_ee_main_mem, EE_MAIN_MEM_SIZE);
+#endif
+#if !defined(__SWITCH__) && !defined(__ANDROID__)
   Discord_Shutdown();
+#endif
   return MasterExit;
 }

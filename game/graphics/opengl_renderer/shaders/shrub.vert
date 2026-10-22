@@ -1,5 +1,6 @@
 #version 410 core
 
+
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in vec3 rgba_base;
@@ -13,7 +14,7 @@ uniform float fog_max;
 uniform int decal;
 uniform vec4 cam_trans;
 uniform mat4 pc_camera;
-uniform sampler1D tex_T10; // note, sampled in the vertex shader on purpose.
+uniform highp sampler2D tex_T10; // note, sampled in the vertex shader on purpose.
 
 out vec4 fragment_color;
 out vec3 tex_coord;
@@ -42,7 +43,7 @@ void main() {
   transformed -= pc_camera[2] * vert.z;
 
   // do fog!
-  fogginess = 255 - clamp(-transformed.w + hvdf_offset.w, fog_min, fog_max);
+  fogginess = 255.0 - clamp(-transformed.w + hvdf_offset.w, fog_min, fog_max);
 
   // scissoring area adjust
   transformed.y *= SCISSOR_ADJUST * HEIGHT_SCALE;
@@ -52,14 +53,14 @@ void main() {
   // start with the vertex color (only rgb, VIF filled in the 255.)
   fragment_color =  vec4(rgba_base, 1);
   // get the time of day multiplier
-  vec4 tod_color = texelFetch(tex_T10, time_of_day_index, 0);
+  vec4 tod_color = texelFetch(tex_T10, ivec2(time_of_day_index, 0), 0);
   // combine
-  fragment_color *= tod_color * 4;
+  fragment_color *= tod_color * 4.0;
 
   if (decal == 1) {
     fragment_color.xyz = vec3(1.0, 1.0, 1.0);
   }
 
   tex_coord = tex_coord_in;
-  tex_coord.xy /= 4096;
+  tex_coord.xy /= 4096.0;
 }

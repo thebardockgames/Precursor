@@ -458,8 +458,10 @@ void Shadow2::draw_buffers(SharedRenderState* render_state,
   m_front_index_buffer[m_front_index_buffer_used++] = UINT32_MAX;
 
   glBindVertexArray(m_ogl.vao);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
   glBufferData(GL_ARRAY_BUFFER, m_vertex_buffer_used * sizeof(ShadowVertex), m_vertex_buffer.data(),
                GL_STREAM_DRAW);
@@ -488,10 +490,15 @@ void Shadow2::draw_buffers(SharedRenderState* render_state,
                  m_front_index_buffer.data(), GL_STREAM_DRAW);
     glStencilFunc(GL_ALWAYS, 0, 0);          // always pass stencil
     glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);  // increment on depth pass.
+#ifndef __ANDROID__
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(UINT32_MAX);
+    #endif
     glDrawElements(GL_TRIANGLE_STRIP, (m_front_index_buffer_used - 6), GL_UNSIGNED_INT, nullptr);
 
+#ifndef __ANDROID__
+    // glPolygonMode(GL_LINE) has no GLES equivalent - see the identical skip + full explanation
+    // in CollideMeshRenderer.cpp. Debug-only wireframe overlay, not gameplay-required.
     if (m_debug_draw_volume) {
       glDisable(GL_BLEND);
       glUniform4f(m_ogl.uniforms.color, 0., 0.0, 0., 0.5);
@@ -502,6 +509,7 @@ void Shadow2::draw_buffers(SharedRenderState* render_state,
       prof.add_draw_call();
       prof.add_tri(m_front_index_buffer_used / 3);
     }
+#endif
     prof.add_draw_call();
     prof.add_tri(m_front_index_buffer_used / 3);
   }
@@ -517,6 +525,8 @@ void Shadow2::draw_buffers(SharedRenderState* render_state,
     glStencilFunc(GL_ALWAYS, 0, 0);
     glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);  // decrement on depth pass.
     glDrawElements(GL_TRIANGLE_STRIP, m_back_index_buffer_used, GL_UNSIGNED_INT, nullptr);
+#ifndef __ANDROID__
+    // See the identical skip + full explanation just above (front pass).
     if (m_debug_draw_volume) {
       glDisable(GL_BLEND);
       glUniform4f(m_ogl.uniforms.color, 0., 0.0, 0., 0.5);
@@ -527,6 +537,7 @@ void Shadow2::draw_buffers(SharedRenderState* render_state,
       prof.add_draw_call();
       prof.add_tri(m_back_index_buffer_used / 3);
     }
+#endif
 
     prof.add_draw_call();
     prof.add_tri(m_back_index_buffer_used / 3);

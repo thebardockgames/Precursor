@@ -729,7 +729,7 @@ uint32_t link_control::jakx_work_opengoal() {
 }
 
 void link_control::jakx_finish(bool jump_from_c_to_goal) {
-  // CacheFlush(this->m_ptr_2, this->m_code_size);
+  flush_code_cache();
   auto old_debug_segment = DebugSegment;
   if (m_keep_debug) {
     // note - this probably doesn't work because DebugSegment isn't *debug-segment*.
@@ -754,7 +754,14 @@ void link_control::jakx_finish(bool jump_from_c_to_goal) {
     // execute top level!
     if (m_entry.offset && (m_flags & LINK_FLAG_EXECUTE)) {
       if (jump_from_c_to_goal) {
+#ifdef __aarch64__
+        // ARM64 needs a real 16-byte-aligned top here, not x86's "-8" (see the identical fix +
+        // full explanation in game/kernel/jak1/kboot.cpp) - confirmed as a real SIGBUS on real
+        // ARM64/Android hardware.
+        u64 goal_stack = (u64(g_ee_main_mem) + EE_MAIN_MEM_SIZE - 16) & ~0xFull;
+#else
         u64 goal_stack = u64(g_ee_main_mem) + EE_MAIN_MEM_SIZE - 8;
+#endif
         call_goal_on_stack(m_entry.cast<Function>(), goal_stack, s7.offset, g_ee_main_mem);
       } else {
         call_goal(m_entry.cast<Function>(), 0, 0, 0, s7.offset, g_ee_main_mem);

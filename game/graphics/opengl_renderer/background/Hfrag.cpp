@@ -183,7 +183,7 @@ Hfrag::HfragLevel* Hfrag::get_hfrag_level(const std::string& name,
 void Hfrag::unload_hfrag_level(Hfrag::HfragLevel* lev) {
   ASSERT(lev->in_use);
   // delete OpenGL resources we created.
-  glBindTexture(GL_TEXTURE_1D, lev->time_of_day_texture);
+  glBindTexture(GL_TEXTURE_2D, lev->time_of_day_texture);
   glDeleteTextures(1, &lev->time_of_day_texture);
   glDeleteVertexArrays(1, &lev->vao);
 
@@ -255,11 +255,17 @@ void Hfrag::load_hfrag_level(const std::string& load_name,
   );
   glActiveTexture(GL_TEXTURE10);
   glGenTextures(1, &lev->time_of_day_texture);
-  glBindTexture(GL_TEXTURE_1D, lev->time_of_day_texture);
-  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 0, GL_RGBA,
-               GL_UNSIGNED_INT_8_8_8_8, nullptr);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glBindTexture(GL_TEXTURE_2D, lev->time_of_day_texture);
+  // GLES has no sampler1D/glTexImage1D at all - this project uses a 2D texture with height 1
+  // everywhere instead (see game/graphics/opengl_renderer/shaders/hfrag.vert's tex_T10, now
+  // sampler2D + texelFetch(..., ivec2(idx, 0), ...) instead of sampler1D + texelFetch(..., idx,
+  // ...)). GL_UNSIGNED_INT_8_8_8_8 doesn't exist in GLES either, but no data is actually
+  // transferred at this call site (nullptr) so the exact type doesn't matter here - GL_UNSIGNED_BYTE
+  // is the closest real equivalent.
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glBindVertexArray(0);
 
   // montage
@@ -389,8 +395,13 @@ void Hfrag::render_hfrag_level(Hfrag::HfragLevel* lev,
   // generate time of day texture
   interp_time_of_day(pc_data.camera.itimes, lev->hfrag->time_of_day_colors, m_color_result.data());
   glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, lev->time_of_day_texture);
-  glTexSubImage1D(GL_TEXTURE_1D, 0, 0, lev->num_colors, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+  glBindTexture(GL_TEXTURE_2D, lev->time_of_day_texture);
+  // GL_UNSIGNED_INT_8_8_8_8_REV doesn't exist in GLES, but on any real (little-endian) hardware
+  // it's byte-for-byte identical to GL_UNSIGNED_BYTE + GL_RGBA for a plain R,G,B,A-in-memory-order
+  // source like m_color_result (std::vector<math::Vector<u8, 4>>, see Hfrag.h) - verified via the
+  // OpenGL spec's packed-format bit layout, not just assumed. See the identical note on the
+  // glTexImage2D call above for why this is now 2D-with-height-1.
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, lev->num_colors, 1, GL_RGBA, GL_UNSIGNED_BYTE,
                   m_color_result.data());
 
   // initialize data
@@ -398,8 +409,10 @@ void Hfrag::render_hfrag_level(Hfrag::HfragLevel* lev,
   glBindBuffer(GL_ARRAY_BUFFER, lev->vertex_buffer);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lev->index_buffer);
   glActiveTexture(GL_TEXTURE0);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
 
   // set up shader
   first_tfrag_draw_setup(pc_data.camera, render_state, ShaderId::HFRAG);
@@ -438,8 +451,10 @@ void Hfrag::render_hfrag_montage_textures(Hfrag::HfragLevel* lev,
   glBindVertexArray(lev->montage_vao);
   glBindBuffer(GL_ARRAY_BUFFER, lev->montage_vertices);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_montage_indices);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_BLEND);
 

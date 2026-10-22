@@ -344,8 +344,18 @@ Val* Compiler::generate_inspector_for_bitfield_type(const goos::Object& form,
   // put the method in the debug segment.
   method_env->set_segment(DEBUG_SEGMENT);
 
-  // Create a register which will hold the input to the inspect method
-  auto input_arg = method_env->make_gpr(bitfield_type->get_name());
+  // Create a register which will hold the input to the inspect method. For a 128-bit bitfield
+  // (e.g. vec4s), this needs to be RegClass::INT_128, not a plain GPR - the constraint just below
+  // already correctly pins it to an xmm/vector argument register when bitfield_128 is true, but
+  // until this was fixed, input_arg/input's *declared* IRegister class stayed GPR_64 regardless,
+  // which downstream code (e.g. BitFieldVal::to_reg() for a field at bit offset >= 64) reads
+  // directly - not derived from whichever physical register a constraint happens to pin. This
+  // additionally only ever produced a real, catchable bug on ARM64, since x86 has no equivalent
+  // to Register::m_is_arm64_vector - an x86 Register's own numeric value alone already tells you
+  // GPR vs XMM, so this mismatched "declared class" was silently masked there. See
+  // the development notes.
+  auto input_class = bitfield_128 ? RegClass::INT_128 : RegClass::GPR_64;
+  auto input_arg = method_env->make_ireg(TypeSpec(bitfield_type->get_name()), input_class);
   // "Constrain" this register to be the register that the function argument is passed in
   IRegConstraint constraint;
   constraint.instr_idx = 0;             // constraint at the start of the function
@@ -360,7 +370,7 @@ Val* Compiler::generate_inspector_for_bitfield_type(const goos::Object& form,
   // Inform the compiler that `input`'s value will be written to `rdi` (first arg register)
   method_env->emit_ir<IR_ValueReset>(form, std::vector<RegVal*>{input_arg});
 
-  auto input = method_env->make_gpr(bitfield_type->get_name());
+  auto input = method_env->make_ireg(TypeSpec(bitfield_type->get_name()), input_class);
   method_env->emit_ir<IR_RegSet>(form, input, input_arg);
 
   RegVal* type_name = compile_get_sym_obj(bitfield_type->get_name(), method_env.get())
@@ -662,14 +672,24 @@ Val* Compiler::compile_defmethod(const goos::Object& form, const goos::Object& _
       }
     }
 
-    new_func_env->emit_ir<IR_Return>(form, return_reg, final_result, ret_hw_reg);
+    if (func_block_env->return_types.size() > 1) {
+      // Methods need the same shared ABI return as ordinary functions. (AI-assisted)
+      new_func_env->emit_ir<IR_RegSet>(form, return_reg, final_result);
+      func_block_env->end_label.idx = new_func_env->code().size();
+      auto abi_return = new_func_env->make_ireg(final_result->type(), return_reg->ireg().reg_class);
+      new_func_env->emit_ir<IR_Return>(form, abi_return, return_reg, ret_hw_reg);
+    } else {
+      new_func_env->emit_ir<IR_Return>(form, return_reg, final_result, ret_hw_reg);
+    }
 
     auto return_type = m_ts.lowest_common_ancestor(func_block_env->return_types);
     lambda_ts.add_arg(return_type);
   } else {
     lambda_ts.add_arg(m_ts.make_typespec("none"));
   }
-  func_block_env->end_label.idx = new_func_env->code().size();
+  if (func_block_env->end_label.idx == -1) {
+    func_block_env->end_label.idx = new_func_env->code().size();
+  }
   new_func_env->emit_ir<IR_Null>(form);
   new_func_env->finish();
 

@@ -73,4 +73,7 @@ s32 InitHeapAndSymbol();
 u64 call_goal_function_by_name(const char* name);
 Ptr<Type> alloc_and_init_type(Ptr<Symbol> sym, u32 method_count);
 Ptr<Symbol> set_fixed_symbol(u32 offset, const char* name, u32 value);
+#if defined(__ANDROID__) && defined(__aarch64__)
+void debug_symbolicate_goal_addr(u64 real_addr);
+#endif
 }  // namespace jak1

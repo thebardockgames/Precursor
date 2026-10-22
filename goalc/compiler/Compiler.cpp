@@ -32,6 +32,15 @@ Compiler::Compiler(GameVersion version,
       m_make(repl_config, user_profile),
       m_repl(std::move(repl)),
       m_symbol_info(&m_goos.reader.db) {
+  // gRegInfo is a single global table (the calling convention / register allocator code is
+  // shared between both instruction sets and always queries it without an explicit arch
+  // parameter) - point it at the real table for whichever architecture this Compiler was built
+  // for, before any of that code runs. See the development notes.
+  if (instr_set == emitter::InstructionSet::ARM64) {
+    emitter::gRegInfo = emitter::RegisterInfo::make_arm64_register_info();
+  } else {
+    emitter::gRegInfo = emitter::RegisterInfo::make_register_info();
+  }
   m_listener.add_debugger(&m_debugger);
   m_listener.set_default_port(version);
   m_ts.add_builtin_types(m_version);
@@ -41,8 +50,11 @@ Compiler::Compiler(GameVersion version,
   // let the build system run us
   m_make.add_tool(std::make_shared<CompilerTool>(this));
 
-  // define game version before loading goal-lib.gc
+  // Expose the output target, not the host architecture, to compile-time GOOS. (AI-assisted)
   m_goos.set_global_variable_by_name("GAME_VERSION", m_goos.intern(game_version_names[m_version]));
+  m_goos.set_global_variable_by_name(
+      "TARGET_ARCH",
+      m_goos.intern(instr_set == emitter::InstructionSet::ARM64 ? "arm64" : "x86-64"));
 
   // load GOAL library
   Object library_code = m_goos.reader.read_from_file({"goal_src", "goal-lib.gc"});
@@ -282,7 +294,20 @@ void Compiler::color_object_file(FileEnv* env) {
 
     m_debug_stats.total_funcs++;
 
-    auto regalloc_result_2 = allocate_registers_v2(input);
+    // Allocator_v2.cpp has its own register-order tables (REG_temp_only_order,
+    // REG_extra_hard_order, allowable_local_var_move_elim, etc.), built directly from raw
+    // X86_REG constants (emitter::RAX, emitter::XMM7, ...) - entirely separate from
+    // emitter::gRegInfo, and never updated for ARM64 (unlike the v1 allocator below, which reads
+    // everything through gRegInfo and is now correctly ARM64-aware - see the development notes for the
+    // whole story of what that took). Since v2 is normally tried first and v1 is only a fallback
+    // for when v2 fails outright, this was silently handing out plain-X86-numbered-and-untagged
+    // registers for ARM64 builds even after every gRegInfo-level fix - always go straight to the
+    // known-correct v1 allocator on ARM64 instead of trying v2 first.
+    AllocationResult regalloc_result_2;
+    regalloc_result_2.ok = false;
+    if (m_instr_set != emitter::InstructionSet::ARM64) {
+      regalloc_result_2 = allocate_registers_v2(input);
+    }
 
     if (regalloc_result_2.ok) {
       if (regalloc_result_2.num_spilled_vars > 0) {

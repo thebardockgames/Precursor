@@ -145,17 +145,27 @@ class Register {
  public:
   Register() = default;
 
-  // intentionally not explicit so we can use X86_REGs in place of Registers
+  // intentionally not explicit so we can use X86_REGs (or plain ARM64 X/SP regs) in place of
+  // Registers
   Register(int id) : m_id(id) {}
 
-  // TODO ARM64 - this assertion isn't as useful for ARM
-  // since Q/V registers are not unique in terms of their id
-  // instead it is the instruction itself that deduces what set of registers to use
+  // ARM64's V (vector/quadword) registers reuse the same 0-31 numeric range as its X (general
+  // purpose) registers at the real hardware encoding level - the id alone can't tell them apart
+  // (this is also why the raw hardware id must never change based on GPR-vs-vector: a real ARM64
+  // instruction's register field really is just 0-31, and which register *file* it addresses is
+  // determined by the instruction opcode itself, not the number). So a second, explicit tag is
+  // needed wherever this project's compiler needs to ask "is this a vector register" outside of
+  // the instruction encoder itself (calling convention, register allocator, etc.) - construct
+  // with is_arm64_vector=true for a V register.
+  Register(int id, bool is_arm64_vector) : m_id(id), m_is_arm64_vector(is_arm64_vector) {}
+
+  bool is_arm64_vector_tag() const { return m_is_arm64_vector; }
+
   bool is_128bit_simd(emitter::InstructionSet instr_set) const {
     if (instr_set == emitter::InstructionSet::X86) {
       return m_id >= XMM0 && m_id <= XMM15;
     } else if (instr_set == emitter::InstructionSet::ARM64) {
-      return m_id >= V0 && m_id <= V31;
+      return m_is_arm64_vector;
     } else {
       ASSERT_MSG(false, "is_128bit_simd: instruction set not supported");
     }
@@ -165,7 +175,7 @@ class Register {
     if (instr_set == emitter::InstructionSet::X86) {
       return m_id >= XMM0 && m_id <= XMM15;
     } else if (instr_set == emitter::InstructionSet::ARM64) {
-      return false;
+      return m_is_arm64_vector;
     } else {
       ASSERT_MSG(false, "is_xmm: instruction set not supported");
     }
@@ -175,7 +185,7 @@ class Register {
     if (instr_set == emitter::InstructionSet::X86) {
       return m_id >= RAX && m_id <= R15;
     } else if (instr_set == emitter::InstructionSet::ARM64) {
-      return (m_id >= X0 && m_id <= X30) || m_id == SP;
+      return !m_is_arm64_vector && ((m_id >= X0 && m_id <= X30) || m_id == SP);
     } else {
       ASSERT_MSG(false, "is_gpr: instruction set not supported");
     }
@@ -199,12 +209,16 @@ class Register {
   int id() const { return m_id; }
 
   struct hash {
-    auto operator()(const Register& x) const { return std::hash<u8>()(x.m_id); }
+    auto operator()(const Register& x) const {
+      return std::hash<u8>()(x.m_id) ^ (x.m_is_arm64_vector ? 0x55 : 0);
+    }
   };
 
-  bool operator==(const Register& x) const { return m_id == x.m_id; }
+  bool operator==(const Register& x) const {
+    return m_id == x.m_id && m_is_arm64_vector == x.m_is_arm64_vector;
+  }
 
-  bool operator!=(const Register& x) const { return m_id != x.m_id; }
+  bool operator!=(const Register& x) const { return !(*this == x); }
 
   std::string print() const;
 
@@ -217,20 +231,28 @@ class Register {
 
  private:
   s8 m_id = -1;
+  // only meaningful when this Register was constructed for ARM64 - see the 2-arg constructor.
+  bool m_is_arm64_vector = false;
 };
 
 class RegisterInfo {
  public:
   static constexpr int N_ARGS = 8;
-  static constexpr int N_REGS = 32;
+  // Wide enough to hold both x86's 32 registers (RAX..XMM15) and ARM64's, which need double that:
+  // ARM64's V (vector) registers numerically overlap X0..SP (see Register::m_is_arm64_vector), so
+  // get_info() below stores/looks them up at id+32 to keep them distinct internally, even though
+  // the real hardware-encoding id (Register::id()) is unaffected and stays 0-31.
+  static constexpr int N_REGS = 64;
   static constexpr int N_SAVED_GPRS = 5;
   static constexpr int N_SAVED_XMMS = 8;
   static constexpr int N_TEMP_GPRS = 5;
   static constexpr int N_TEMP_XMMS = 8;
 
-  static_assert(N_REGS - 1 == XMM15, "bad register count");
+  static_assert(N_REGS > XMM15, "bad register count");
+  static_assert(N_REGS > 32 + V31, "bad register count");
 
   static RegisterInfo make_register_info();
+  static RegisterInfo make_arm64_register_info();
 
   struct Info {
     bool saved = false;    // does the callee save it?
@@ -240,16 +262,30 @@ class RegisterInfo {
     bool temp() const { return !saved && !special; }
   };
 
-  const Info& get_info(Register r) const { return m_info.at(r.id()); }
+  const Info& get_info(Register r) const {
+    return m_info.at(r.id() + (r.is_arm64_vector_tag() ? 32 : 0));
+  }
+  std::vector<Register> get_temp_registers() const {
+    std::vector<Register> registers;
+    for (int index = 0; index < N_REGS; ++index) {
+      const auto& info = m_info[index];
+      if (!info.name.empty() && info.temp()) {
+        // Metadata indices are not hardware ids: ARM64 V0 lives at index 32. (AI-assisted)
+        const bool vector = m_xmm_ret_reg.is_arm64_vector_tag() && index >= 32;
+        registers.emplace_back(vector ? index - 32 : index, vector);
+      }
+    }
+    return registers;
+  }
   Register get_gpr_arg_reg(int id) const { return m_gpr_arg_regs.at(id); }
   Register get_xmm_arg_reg(int id) const { return m_xmm_arg_regs.at(id); }
   Register get_saved_gpr(int id) const { return m_saved_gprs.at(id); }
   Register get_saved_xmm(int id) const { return m_saved_xmms.at(id); }
-  Register get_process_reg() const { return R13; }
-  Register get_st_reg() const { return R14; }
-  Register get_offset_reg() const { return R15; }
-  Register get_gpr_ret_reg() const { return RAX; }
-  Register get_xmm_ret_reg() const { return XMM0; }
+  Register get_process_reg() const { return m_process_reg; }
+  Register get_st_reg() const { return m_st_reg; }
+  Register get_offset_reg() const { return m_offset_reg; }
+  Register get_gpr_ret_reg() const { return m_gpr_ret_reg; }
+  Register get_xmm_ret_reg() const { return m_xmm_ret_reg; }
   const std::vector<Register>& get_gpr_alloc_order() { return m_gpr_alloc_order; }
   const std::vector<Register>& get_xmm_alloc_order() { return m_xmm_alloc_order; }
   const std::vector<Register>& get_gpr_temp_alloc_order() { return m_gpr_temp_only_alloc_order; }
@@ -260,6 +296,11 @@ class RegisterInfo {
 
  private:
   RegisterInfo() = default;
+  Register m_process_reg;  // "pp" - x86: R13, arm64: X20
+  Register m_st_reg;       // "st" - x86: R14, arm64: X21
+  Register m_offset_reg;   // "offset" - x86: R15, arm64: X22
+  Register m_gpr_ret_reg;  // x86: RAX, arm64: X8
+  Register m_xmm_ret_reg;  // x86: XMM0, arm64: V0
   std::array<Info, N_REGS> m_info;
   std::array<Register, N_ARGS> m_gpr_arg_regs;
   std::array<Register, N_ARGS> m_xmm_arg_regs;

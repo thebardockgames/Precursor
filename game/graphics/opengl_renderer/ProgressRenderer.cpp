@@ -2,7 +2,7 @@
 
 ProgressRenderer::ProgressRenderer(const std::string& name, int my_id, int batch_size)
     : DirectRenderer(name, my_id, batch_size),
-      m_minimap_fb(kMinimapWidth, kMinimapHeight, GL_UNSIGNED_INT_8_8_8_8_REV) {}
+      m_minimap_fb(kMinimapWidth, kMinimapHeight, GL_UNSIGNED_BYTE) {}
 
 void ProgressRenderer::pre_render() {
   m_current_fbp = kScreenFbp;

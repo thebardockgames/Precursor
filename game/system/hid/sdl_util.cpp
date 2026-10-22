@@ -3,7 +3,11 @@
 #include "common/log/log.h"
 
 #include "fmt/ranges.h"
+#ifdef __SWITCH__
+#include <SDL.h>
+#else
 #include "third-party/SDL/include/SDL3/SDL.h"
+#endif
 
 namespace sdl_util {
 void log_error(const std::string& msg) {
@@ -90,14 +94,24 @@ std::string get_keyboard_button_name(const int sdl_key_code, InputModifiers modi
   return fmt::to_string(fmt::join(tokens, " + "));
 }
 std::string get_controller_button_name(const int sdl_button_id) {
+#ifdef __SWITCH__
+  // SDL3 renamed the GameController API to Gamepad (SDL_GameControllerButton/Axis ->
+  // SDL_GamepadButton/Axis, GetStringForButton/Axis dropping the "GameController" prefix).
+  const auto result = SDL_GameControllerGetStringForButton((SDL_GameControllerButton)sdl_button_id);
+#else
   const auto result = SDL_GetGamepadStringForButton((SDL_GamepadButton)sdl_button_id);
+#endif
   if (!result) {
     return "Unknown";
   }
   return result;
 }
 std::string get_controller_axis_name(const int sdl_axis_id) {
+#ifdef __SWITCH__
+  const auto result = SDL_GameControllerGetStringForAxis((SDL_GameControllerAxis)sdl_axis_id);
+#else
   const auto result = SDL_GetGamepadStringForAxis((SDL_GamepadAxis)sdl_axis_id);
+#endif
   if (!result) {
     return "Unknown";
   }

@@ -36,6 +36,11 @@ void handleDiscordJoinRequest(const DiscordUser* /*request*/) {}
 void handleDiscordSpectate(const char* /*secret*/) {}
 
 void init_discord_rpc() {
+#if defined(__SWITCH__) || defined(__ANDROID__)
+  // No local Discord client to connect to on either target (Switch: none exists; Android: no
+  // desktop Discord IPC socket to reach from a phone).
+  (void)rpc_client_ids;
+#else
   if (g_game_version != GameVersion::Jak1 && g_game_version != GameVersion::Jak2 &&
       g_game_version != GameVersion::Jak3) {
     lg::error("Game version unsupported for Discord RPC - {}", fmt::underlying(g_game_version));
@@ -54,6 +59,7 @@ void init_discord_rpc() {
   handlers.joinRequest = handleDiscordJoinRequest;
   handlers.spectateGame = handleDiscordSpectate;
   Discord_Initialize(rpc_client_ids.at(g_game_version).c_str(), &handlers, 1, NULL);
+#endif
 }
 
 void set_discord_rpc(int state) {

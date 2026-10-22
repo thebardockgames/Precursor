@@ -289,6 +289,7 @@
           (('play1) (ja :num! (seek!)) (if (ja-done? 0) (deactivate self)))))))
 
 (defbehavior manipy-init manipy ((arg0 vector) (arg1 entity-actor) (arg2 skeleton-group) (arg3 vector))
+  (format 0 "(AI-assisted) manipy-init self ~X type ~A skel ~X~%" self (-> self type) arg2)
   ;; og:preserve-this increased from 128
   (stack-size-set! (-> self main-thread) 256)
   (logior! (-> self mask) (process-mask heap-shrunk))
@@ -318,6 +319,7 @@
     (else (set! (-> self root) (new 'process 'trsqv))))
   (set! (-> self root trans quad) (-> arg0 quad))
   (initialize-skeleton self arg2 '())
+  (format 0 "(AI-assisted) manipy initialized self ~X draw ~X root ~X~%" self (-> self draw) (-> self root))
   (if (type-type? (-> self root type) collide-shape) (update-transforms! (the-as collide-shape (-> self root))))
   (set! (-> self shadow-backup) (-> self draw shadow))
   (set! (-> self new-trans-hook) nothing)

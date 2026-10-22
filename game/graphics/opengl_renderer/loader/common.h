@@ -6,7 +6,14 @@
 
 #include "game/graphics/texture/TexturePool.h"
 
+#ifdef __ANDROID__
+// Goes through opengl.h rather than a direct <GLES3/gl32.h> include so the anisotropic-filtering
+// and other alias #defines it sets up (GL_TEXTURE_MAX_ANISOTROPY, glClearDepth, ...) are visible
+// here too.
+#include "game/graphics/pipelines/opengl.h"
+#else
 #include "third-party/glad/include/glad/glad.h"
+#endif
 
 struct LevelData {
   std::unique_ptr<tfrag3::Level> level;

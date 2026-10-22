@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Precursor app icon, "Orbe" design: teal core inside a brass ring with four notches.
+     Everything sits inside the 66dp safe zone of the 108dp adaptive canvas. Original artwork.
+     (AI-assisted) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- glow -->
+    <path android:pathData="M20,54a34,34 0,1 0,68 0a34,34 0,1 0,-68 0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="34">
+                <item android:offset="0" android:color="#8C7CF3E6" />
+                <item android:offset="1" android:color="#007CF3E6" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- brass ring -->
+    <path
+        android:pathData="M29,54a25,25 0,1 0,50 0a25,25 0,1 0,-50 0z"
+        android:strokeWidth="5">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="29"
+                android:startY="29"
+                android:endX="79"
+                android:endY="79">
+                <item android:offset="0" android:color="#FFF3CF7A" />
+                <item android:offset="0.55" android:color="#FFD39A35" />
+                <item android:offset="1" android:color="#FF9A6516" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- teal core -->
+    <path android:pathData="M37,54a17,17 0,1 0,34 0a17,17 0,1 0,-34 0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="50"
+                android:centerY="48"
+                android:gradientRadius="24">
+                <item android:offset="0" android:color="#FFB9FFF4" />
+                <item android:offset="0.45" android:color="#FF3FD6CF" />
+                <item android:offset="1" android:color="#FF0F6F78" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- four notches -->
+    <path android:pathData="M54,22l5,7h-10z M86,54l-7,5v-10z M54,86l-5,-7h10z M22,54l7,-5v10z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="22"
+                android:startY="22"
+                android:endX="86"
+                android:endY="86">
+                <item android:offset="0" android:color="#FFF3CF7A" />
+                <item android:offset="0.55" android:color="#FFD39A35" />
+                <item android:offset="1" android:color="#FF9A6516" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- highlight -->
+    <group
+        android:rotation="-30"
+        android:pivotX="48"
+        android:pivotY="47">
+        <path
+            android:fillColor="#B3FFFFFF"
+            android:pathData="M43,47a5,3.2 0,1 0,10 0a5,3.2 0,1 0,-10 0z" />
+    </group>
+</vector>

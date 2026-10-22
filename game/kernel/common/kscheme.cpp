@@ -83,8 +83,27 @@ u64 goal_malloc(u32 heap, u32 size, u32 flags, u32 name) {
 }
 
 extern "C" {
-// defined in asm_funcs.asm
-#ifdef __linux__
+// defined in asm_funcs.asm / asm_funcs_arm64.s
+// NOTE: checked before __linux__ - devkitA64's bare-metal newlib target (Switch) doesn't define
+// __linux__ at all, so this branch also covers Switch, not just Android/real ARM64 Linux.
+#if defined(__aarch64__) && defined(__APPLE__)
+uint64_t _call_goal_asm_arm64(u64 a0, u64 a1, u64 a2, void* fptr, void* st_ptr, void* offset) asm(
+    "_call_goal_asm_arm64");
+uint64_t _call_goal_on_stack_asm_arm64(u64 rsp,
+                                       u64 u0,
+                                       u64 u1,
+                                       void* fptr,
+                                       void* st_ptr,
+                                       void* offset) asm("_call_goal_on_stack_asm_arm64");
+#elif defined(__aarch64__)
+uint64_t _call_goal_asm_arm64(u64 a0, u64 a1, u64 a2, void* fptr, void* st_ptr, void* offset);
+uint64_t _call_goal_on_stack_asm_arm64(u64 rsp,
+                                       u64 u0,
+                                       u64 u1,
+                                       void* fptr,
+                                       void* st_ptr,
+                                       void* offset);
+#elif defined __linux__
 uint64_t _call_goal_asm_systemv(u64 a0, u64 a1, u64 a2, void* fptr, void* st_ptr, void* offset);
 uint64_t _call_goal_on_stack_asm_systemv(u64 rsp,
                                          u64 u0,
@@ -116,7 +135,9 @@ u64 call_goal(Ptr<Function> f, u64 a, u64 b, u64 c, u64 st, void* offset) {
   void* st_ptr = (void*)st;
 
   void* fptr = f.c();
-#ifdef __linux__
+#ifdef __aarch64__
+  return _call_goal_asm_arm64(a, b, c, fptr, st_ptr, offset);
+#elif defined __linux__
   return _call_goal_asm_systemv(a, b, c, fptr, st_ptr, offset);
 #elif defined __APPLE__ && defined __x86_64__
   return _call_goal_asm_systemv(a, b, c, fptr, st_ptr, offset);
@@ -132,7 +153,9 @@ u64 call_goal_on_stack(Ptr<Function> f, u64 rsp, u64 st, void* offset) {
   void* st_ptr = (void*)st;
 
   void* fptr = f.c();
-#ifdef __linux__
+#ifdef __aarch64__
+  return _call_goal_on_stack_asm_arm64(rsp, 0, 0, fptr, st_ptr, offset);
+#elif defined __linux__
   return _call_goal_on_stack_asm_systemv(rsp, 0, 0, fptr, st_ptr, offset);
 #elif defined __APPLE__ && defined __x86_64__
   return _call_goal_on_stack_asm_systemv(rsp, 0, 0, fptr, st_ptr, offset);

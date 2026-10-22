@@ -18,6 +18,8 @@ Our objectives are:
 
 At the moment we support **x86_64** on Windows, Linux and macOS (via Rosetta translation).  There are no plans to ever make a mobile release.
 
+**Precursor (this fork)** adds a native Android (arm64-v8a) port on top: an ARM64 backend for the GOAL compiler (`goalc --arch arm64`), the renderer on OpenGL ES 3.2 and the Android app in `scripts/android-port/apk`. Changes for ARM64 must not alter the x86-64 behaviour. See `README.md`. (AI-assisted)
+
 ### Project Structure
 
 There are four main components to the project.

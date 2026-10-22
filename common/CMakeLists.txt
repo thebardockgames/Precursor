@@ -103,12 +103,28 @@ add_library(common
         versions/versions.cpp
         )
 
-target_link_libraries(common fmt lzokay replxx libzstd_static tree-sitter sqlite3 libtinyfiledialogs tiny_gltf)
+target_link_libraries(common fmt lzokay libzstd_static tree-sitter sqlite3 tiny_gltf)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # replxx is the interactive dev REPL's line editor (history/tab-completion), which needs a
+    # real TTY - not available on Switch. See common/repl/repl_wrapper.h.
+    target_link_libraries(common replxx)
+    # libtinyfiledialogs has no Switch backend (no native OS dialogs, no zenity/kdialog, and
+    # even its text-console fallback needs a TTY). See common/util/dialogs.{h,cpp}.
+    target_link_libraries(common libtinyfiledialogs)
+endif()
 
 if(WIN32)
     target_link_libraries(common wsock32 ws2_32 windowsapp)
 elseif(APPLE)
     # don't need anything special
+elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # devkitA64's GCC has std::filesystem built into libstdc++ directly (no separate
+    # -lstdc++fs needed, that was only ever required on GCC <9) - moot anyway since this
+    # project uses the vendored ghc::filesystem polyfill instead of <filesystem>.
+elseif(ANDROID)
+    # The NDK's toolchain uses libc++ (not GNU libstdc++), which has always had
+    # std::filesystem built in directly - there's no separate "-lstdc++fs" library to link
+    # against on this target at all (linking it would just fail with "cannot find -lstdc++fs").
 else()
     target_link_libraries(common stdc++fs)
 endif()

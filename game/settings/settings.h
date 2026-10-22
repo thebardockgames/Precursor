@@ -3,7 +3,11 @@
 #include "common/util/FileUtil.h"
 #include "common/util/json_util.h"
 
+#ifdef __SWITCH__
+#include <SDL.h>
+#else
 #include "SDL3/SDL.h"
+#endif
 #include "game/system/hid/input_bindings.h"
 #include "game/system/hid/sdl_util.h"
 #include "game/tools/filter_menu/filter_menu.h"
@@ -39,8 +43,14 @@ struct DebugSettings {
 
   u32 hide_imgui_key = SDLK_LALT;
 
+#ifdef __SWITCH__
+  // SDL2 has no SDL_ prefix on its keymod constants (KMOD_ALT vs SDL3's SDL_KMOD_ALT).
+  KeyWithModifiers toggle_fullscreen_key =
+      KeyWithModifiers(SDLK_RETURN, InputModifiers(KMOD_ALT));
+#else
   KeyWithModifiers toggle_fullscreen_key =
       KeyWithModifiers(SDLK_RETURN, InputModifiers(SDL_KMOD_ALT));
+#endif
 
   void load_settings();
   void save_settings();

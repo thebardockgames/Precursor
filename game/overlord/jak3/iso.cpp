@@ -818,7 +818,12 @@ u32 ISOThread() {
 
   // ISOFileDef* file_def = nullptr;
 
+  u64 j3_intro_outer_iters = 0;
   while (true) {
+    j3_intro_outer_iters++;
+    if ((j3_intro_outer_iters % 2000) == 0) {
+      lg::info("[J3-INTRO-NATIVE] ISOThread outer loop heartbeat iters={}", j3_intro_outer_iters);
+    }
     // dma_intr_hack();
     // Part 1: Handle incoming messages from the user:
 
@@ -1212,7 +1217,16 @@ EIsoStatus RunDGOStateMachine(ISO_Hdr* m) {
       // nothing we can do with no data...
       goto out_of_data;
     }
+    u64 j3_intro_sm_iters = 0;
     do {
+      j3_intro_sm_iters++;
+      if ((j3_intro_sm_iters & 0xffff) == 0) {
+        lg::info(
+            "[J3-INTRO-NATIVE] RunDGOStateMachine stuck? iters={} state={} buffer_len={} "
+            "bytes_processed={} objects_loaded={}/{} dgo={}",
+            j3_intro_sm_iters, (int)cmd->state, buffer_len, cmd->bytes_processed,
+            cmd->objects_loaded, cmd->dgo_header.object_count, cmd->dgo_header.name);
+      }
       switch (cmd->state) {
         case ISO_DGOCommand::State::INIT:
           ovrld_log(LogCategory::DGO, "DGO: Starting state machine");
@@ -1231,7 +1245,13 @@ EIsoStatus RunDGOStateMachine(ISO_Hdr* m) {
           }
 
           // loop over pages - the header may span multiple pages that aren't adjacent in memory.
+          u64 j3_intro_hdr_iters = 0;
           while (bytes_needed) {
+            j3_intro_hdr_iters++;
+            if ((j3_intro_hdr_iters & 0xffff) == 0) {
+              lg::info("[J3-INTRO-NATIVE] READ_DGO_HEADER stuck? iters={} bytes_needed={}",
+                        j3_intro_hdr_iters, bytes_needed);
+            }
             // determine how many bytes to copy from this page
             int bytes_from_this_page = buffer->m_pPageList->m_pCurrentActivePage->m_pPageMemEnd -
                                        file->m_Buffer.m_pCurrentData + 1;
@@ -1361,7 +1381,13 @@ EIsoStatus RunDGOStateMachine(ISO_Hdr* m) {
           if (buffer_len < bytes_needed) {
             bytes_needed = buffer_len;
           }
+          u64 j3_intro_objhdr_iters = 0;
           while (bytes_needed) {
+            j3_intro_objhdr_iters++;
+            if ((j3_intro_objhdr_iters & 0xffff) == 0) {
+              lg::info("[J3-INTRO-NATIVE] READ_OBJ_HEADER stuck? iters={} bytes_needed={}",
+                        j3_intro_objhdr_iters, bytes_needed);
+            }
             int bytes_from_this_page = buffer->m_pPageList->m_pCurrentActivePage->m_pPageMemEnd -
                                        file->m_Buffer.m_pCurrentData + 1;
             if (bytes_needed <= bytes_from_this_page) {
@@ -1395,7 +1421,13 @@ EIsoStatus RunDGOStateMachine(ISO_Hdr* m) {
             bytes_needed = buffer_len;
           }
 
+          u64 j3_intro_objdata_iters = 0;
           while (bytes_needed) {
+            j3_intro_objdata_iters++;
+            if ((j3_intro_objdata_iters & 0xffff) == 0) {
+              lg::info("[J3-INTRO-NATIVE] READ_OBJ_DATA stuck? iters={} bytes_needed={}",
+                        j3_intro_objdata_iters, bytes_needed);
+            }
             auto* page = buffer->m_pPageList->m_pCurrentActivePage;
             int bytes_from_this_page = page->m_pPageMemEnd - file->m_Buffer.m_pCurrentData + 1;
             if (bytes_needed <= bytes_from_this_page) {
@@ -1622,10 +1654,18 @@ void LoadNextDGO(RPC_Dgo_Cmd* cmd) {
 
 void CancelDGO(RPC_Dgo_Cmd* param_1) {
   ovrld_log(LogCategory::WARN, "DGO RPC: CancelDGO {}", param_1 ? param_1->name : "NO CMD");
+  lg::info("[J3-INTRO-NATIVE] CancelDGO enter name={} msg_type={} want_abort={} "
+            "nosync_cancel_ack={} sync_sent={} sync_ret={}",
+            param_1 ? param_1->name : "NO-CMD", (int)sLoadDGO.msg_type, sLoadDGO.want_abort,
+            sLoadDGO.nosync_cancel_ack, sLoadDGO.sync_sent_count, sLoadDGO.sync_ret_count);
   if (sLoadDGO.msg_type != ISO_Hdr::MsgType::MSG_0) {
     sLoadDGO.want_abort = 1;
-    if (NotifyDGO()) {
+    bool notified = NotifyDGO();
+    lg::info("[J3-INTRO-NATIVE] CancelDGO notified={} about_to_wait={}", notified, notified);
+    if (notified) {
+      lg::info("[J3-INTRO-NATIVE] CancelDGO WaitMbx(g_nDGOMbx) BEFORE");
       WaitMbx(g_nDGOMbx);
+      lg::info("[J3-INTRO-NATIVE] CancelDGO WaitMbx(g_nDGOMbx) AFTER (unblocked)");
     }
     if (param_1) {
       param_1->status = 3;
@@ -1633,6 +1673,7 @@ void CancelDGO(RPC_Dgo_Cmd* param_1) {
     sLoadDGO.selected_id = -1;
     sLoadDGO.msg_type = ISO_Hdr::MsgType::MSG_0;
   }
+  lg::info("[J3-INTRO-NATIVE] CancelDGO exit");
 }
 
 void CancelDGONoSync(int id) {

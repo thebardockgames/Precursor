@@ -5998,6 +5998,9 @@
            )
       (10000
         (send-event *time-of-day* 'change 'ratio (float 1))
+        (format #t "[J3-INTRO] intro-scenes closing city-start-introduction aborted=~A scene-select=~A~%"
+                (-> self aborted?)
+                (scene-select?))
         (task-close! "city-start-introduction")
         (apply
           ,(lambda :behavior scene-player
@@ -6014,6 +6017,9 @@
                 (remove-setting! 'allow-blackout)
                 )
                (else
+                 (format #t "[J3-INTRO] intro-scenes setting end-point title-from-intro bg-a=~A loading=~A~%"
+                         (-> *setting-control* user-current bg-a)
+                         (load-in-progress? *level*))
                  (set! (-> self end-point) "title-from-intro")
                  (set! (-> self blackout-end) #f)
                  )

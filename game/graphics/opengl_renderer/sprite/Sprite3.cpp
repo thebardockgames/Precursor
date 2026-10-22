@@ -584,8 +584,10 @@ void Sprite3::flush_sprites(SharedRenderState* render_state,
                             bool double_draw) {
   glBindVertexArray(m_ogl.vao);
 
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
 
   // upload vertex buffer
   glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);

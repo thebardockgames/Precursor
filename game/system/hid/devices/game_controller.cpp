@@ -59,6 +59,15 @@ GameController::GameController(int sdl_device_id,
   } else {
     m_device_name = name;
   }
+#ifdef __SWITCH__
+  // SDL2 has no properties system (SDL3-only) - it exposes these same three capability queries
+  // as direct per-controller functions instead.
+  m_has_led = SDL_GameControllerHasLED(m_device_handle);
+  m_has_rumble = SDL_GameControllerHasRumble(m_device_handle);
+  m_has_trigger_rumble = SDL_GameControllerHasRumbleTriggers(m_device_handle);
+  m_is_dualsense = SDL_GetGamepadType(m_device_handle) == SDL_GAMEPAD_TYPE_PS5;
+  clear_trigger_effect(dualsense_effects::TriggerEffectOption::BOTH);
+#else
   auto properties = SDL_GetGamepadProperties(m_device_handle);
   if (!properties) {
     sdl_util::log_error(
@@ -75,6 +84,7 @@ GameController::GameController(int sdl_device_id,
     m_is_dualsense = SDL_GetGamepadType(m_device_handle) == SDL_GAMEPAD_TYPE_PS5;
     clear_trigger_effect(dualsense_effects::TriggerEffectOption::BOTH);
   }
+#endif
 
   if (m_settings->controller_binds.find(m_guid) == m_settings->controller_binds.end()) {
     m_settings->controller_binds[m_guid] = DEFAULT_CONTROLLER_BINDS;

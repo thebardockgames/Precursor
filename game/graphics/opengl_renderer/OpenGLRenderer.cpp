@@ -75,6 +75,9 @@ OpenGLRenderer::OpenGLRenderer(std::shared_ptr<TexturePool> texture_pool,
     : m_render_state(texture_pool, loader, version),
       m_collide_renderer(version),
       m_version(version) {
+#ifdef __ANDROID__
+  glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+#endif
   // requires OpenGL 4.3
 #ifndef __APPLE__
   // setup OpenGL errors
@@ -901,7 +904,17 @@ Fbo make_fbo(int w, int h, int msaa, bool make_zbuf_and_stencil) {
   glActiveTexture(GL_TEXTURE0);
   if (use_multisample) {
     glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
+#ifdef __ANDROID__
+    // GLES has no mutable glTexImage2DMultisample() - only the immutable-storage
+    // glTexStorage2DMultisample(), otherwise a drop-in replacement for this create-a-fresh-
+    // texture call site. Kept Android-only rather than switching every platform to it: desktop
+    // GL 4.1 (macOS's cap - see opengl.cpp's context creation) doesn't guarantee
+    // glTexStorage2DMultisample is present (core only since GL 4.3), unlike glTexImage2DMultisample
+    // (core since GL 3.2, safe on every currently-supported desktop target).
+    glTexStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, msaa, GL_RGBA8, w, h, GL_TRUE);
+#else
     glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, msaa, GL_RGBA8, w, h, GL_TRUE);
+#endif
   } else {
     glBindTexture(GL_TEXTURE_2D, tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
@@ -943,12 +956,16 @@ Fbo make_fbo(int w, int h, int msaa, bool make_zbuf_and_stencil) {
       case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
         lg::print("GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT\n");
         break;
+#ifndef __ANDROID__
+      // See the identical guard + full explanation in opengl_utils.cpp - these two enums don't
+      // exist in GLES, pure diagnostic-message cases.
       case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
         lg::print("GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER\n");
         break;
       case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
         lg::print("GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER\n");
         break;
+#endif
       case GL_FRAMEBUFFER_UNSUPPORTED:
         lg::print("GL_FRAMEBUFFER_UNSUPPORTED\n");
         break;

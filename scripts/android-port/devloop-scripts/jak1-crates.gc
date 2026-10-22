@@ -1,0 +1,14 @@
+;; Geyser Rock: break every crate from the REPL, to check the ARM64 backup stack floor
+;; (crate die logged "suspend called without enough stack ... 208/128" on a phone). (AI-assisted)
+;; Run: scripts/android-port/devloop.sh -n -S scripts/android-port/devloop-scripts/jak1-crates.gc -t 300
+(start 'play (get-continue-by-name *game-info* "training-start"))
+(script-wait 40)
+(iterate-process-tree *active-pool*
+                      (lambda ((p process))
+                        (when (type-type? (-> p type) crate)
+                          (format #t "[script-print] breaking ~A~%" (-> p name))
+                          (send-event p 'attack #f 'explode 0 0))
+                        #f)
+                      *kernel-context*)
+(script-wait 20)
+(format #t "[script-print] level0=~A level1=~A~%" (-> *level* level0 name) (-> *level* level1 name))

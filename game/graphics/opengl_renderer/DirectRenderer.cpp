@@ -307,6 +307,9 @@ void DirectRenderer::flush_pending(SharedRenderState* render_state, ScopedProfil
     draw_count++;
   }
 
+#ifndef __ANDROID__
+  // glPolygonMode(GL_LINE) has no GLES equivalent - see the identical skip + full explanation in
+  // CollideMeshRenderer.cpp. This is a debug-only wireframe overlay, not gameplay-required.
   if (m_debug_state.wireframe) {
     render_state->shaders[ShaderId::DEBUG_RED].activate();
     glDisable(GL_BLEND);
@@ -317,6 +320,7 @@ void DirectRenderer::flush_pending(SharedRenderState* render_state, ScopedProfil
     m_prim_gl_state_needs_gl_update = true;
     draw_count++;
   }
+#endif
 
   glActiveTexture(GL_TEXTURE0);
   glBindVertexArray(0);
@@ -537,9 +541,15 @@ void DirectRenderer::update_gl_test() {
     ASSERT(false);
   }
 
-  bool alpha_trick_to_disable = m_test_state.alpha_test_enable &&
-                                m_test_state.alpha_test == GsTest::AlphaTest::NEVER &&
-                                m_test_state.afail == GsTest::AlphaFail::FB_ONLY;
+  // A failing GS alpha test with FB_ONLY or RGB_ONLY never writes depth.
+  // Jak 3's menu darkening quad uses NEVER/RGB_ONLY before drawing the
+  // translucent hologram; writing its depth hides that later geometry.
+  // RGB_ONLY also preserves destination alpha. (AI-assisted)
+  const bool alpha_always_fails = state.alpha_test_enable &&
+                                  state.alpha_test == GsTest::AlphaTest::NEVER;
+  const bool alpha_trick_to_disable =
+      alpha_always_fails && (state.afail == GsTest::AlphaFail::FB_ONLY ||
+                            state.afail == GsTest::AlphaFail::RGB_ONLY);
 
   if (m_test_state.afail == GsTest::AlphaFail::FB_ONLY ||
       m_test_state.afail == GsTest::AlphaFail::RGB_ONLY) {
@@ -554,10 +564,11 @@ void DirectRenderer::update_gl_test() {
     glDepthMask(GL_FALSE);
   }
 
+  const bool write_alpha = !(alpha_always_fails && state.afail == GsTest::AlphaFail::RGB_ONLY);
   if (state.write_rgb) {
-    glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, write_alpha);
   } else {
-    glColorMaski(0, GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+    glColorMaski(0, GL_FALSE, GL_FALSE, GL_FALSE, write_alpha);
   }
 }
 

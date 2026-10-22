@@ -7,6 +7,7 @@
 #include "common/log/log.h"
 #include "common/symbols.h"
 
+#include "game/kernel/common/arm64_trampoline.h"
 #include "game/kernel/common/Symbol4.h"
 #include "game/kernel/common/fileio.h"
 #include "game/kernel/common/kdsnetm.h"
@@ -293,15 +294,14 @@ void _stack_call_arm64();
 Ptr<Function> make_function_from_c_systemv(void* func, bool arg3_is_pp) {
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        u32_in_fixed_sym(FIX_SYM_FUNCTION_TYPE), 0x40, UNKNOWN_PP));
+#ifdef __aarch64__
+  emit_arm64_c_call_trampoline(mem.c(), func, reinterpret_cast<void*>(_arg_call_arm64), arg3_is_pp);
+  return mem.cast<Function>();
+#else
   auto f = (uint64_t)func;
   auto target_function = (u8*)&f;
-#ifndef __aarch64__
   auto trampoline_function_addr = _arg_call_systemv;
-#else
-  auto trampoline_function_addr = _arg_call_arm64;
-#endif
   auto trampoline = (u8*)&trampoline_function_addr;
-  // TODO - x86 code still being emitted below
 
   // movabs rax, target_function
   int offset = 0;
@@ -336,6 +336,7 @@ Ptr<Function> make_function_from_c_systemv(void* func, bool arg3_is_pp) {
   // CacheFlush(mem, 0x34);
 
   return mem.cast<Function>();
+#endif
 }
 
 /*!
@@ -405,13 +406,13 @@ Ptr<Function> make_stack_arg_function_from_c_systemv(void* func) {
   // allocate a function object on the global heap
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        u32_in_fixed_sym(FIX_SYM_FUNCTION_TYPE), 0x40, UNKNOWN_PP));
+#ifdef __aarch64__
+  emit_arm64_c_call_trampoline(mem.c(), func, reinterpret_cast<void*>(_stack_call_arm64), false);
+  return mem.cast<Function>();
+#else
   auto f = (uint64_t)func;
   auto target_function = (u8*)&f;
-#ifndef __aarch64__
   auto trampoline_function_addr = _stack_call_systemv;
-#else
-  auto trampoline_function_addr = _stack_call_arm64;
-#endif
   auto trampoline = (u8*)&trampoline_function_addr;
 
   // movabs rax, target_function
@@ -439,6 +440,7 @@ Ptr<Function> make_stack_arg_function_from_c_systemv(void* func) {
   // CacheFlush(mem, 0x34);
 
   return mem.cast<Function>();
+#endif
 }
 
 #ifdef _WIN32
@@ -517,9 +519,13 @@ Ptr<Function> make_nothing_func() {
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        u32_in_fixed_sym(FIX_SYM_FUNCTION_TYPE), 0x14, UNKNOWN_PP));
 
+#ifdef __aarch64__
+  emit_arm64_return_stub(mem.c(), false);
+#else
   // a single x86-64 ret.
   mem.c()[0] = 0xc3;
   // CacheFlush(mem, 8);
+#endif
   return mem.cast<Function>();
 }
 
@@ -529,12 +535,16 @@ Ptr<Function> make_nothing_func() {
 Ptr<Function> make_zero_func() {
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        u32_in_fixed_sym(FIX_SYM_FUNCTION_TYPE), 0x14, UNKNOWN_PP));
+#ifdef __aarch64__
+  emit_arm64_return_stub(mem.c(), true);
+#else
   // xor eax, eax
   mem.c()[0] = 0x31;
   mem.c()[1] = 0xc0;
   // ret
   mem.c()[2] = 0xc3;
   // CacheFlush(mem, 8);
+#endif
   return mem.cast<Function>();
 }
 

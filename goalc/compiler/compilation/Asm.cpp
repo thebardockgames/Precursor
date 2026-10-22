@@ -17,6 +17,109 @@ emitter::Register Compiler::parse_register(const goos::Object& code) {
   auto nas = code.as_symbol();
   for (int i = 0; i < 32; i++) {
     if (std::string_view(nas.name_ptr) == reg_names[i]) {
+      // reg_names[] is x86 register names in x86 numeric order (rax=0...xmm15=31) - on ARM64,
+      // emitter::Register's raw id space is completely different (and vector registers need the
+      // explicit is_arm64_vector tag - see Register::m_is_arm64_vector - or they're
+      // indistinguishable from a same-numbered GPR, the exact bug this branch exists to avoid).
+      //
+      // This is used for more than hand-written x86 inline-asm forms: `rlet` (compile_rlet, below)
+      // uses it too, and real GOAL kernel code (gcommon.gc's start-of-symbol-table/
+      // end-of-symbol-table, gkernel.gc's thread/stack-switching code, ...) uses `(rlet ((st :reg
+      // r14 ...)) ...)`-style forms specifically to reach x86's r13/r14/r15/rsp - the GOAL
+      // compiler's own "pp"/"st"/"offset" special registers and the real machine stack pointer -
+      // by their x86 hardware name, expecting them to behave as those roles (in particular: never
+      // clobbered by a call, since make_register_info() marks R13/R14/R15 `special`). A purely
+      // positional mapping (old rax=0...xmm15=31 index -> X0...V15) sends "r14" to plain X14 - an
+      // ordinary temp GPR that make_arm64_register_info() has NOT marked special and that DOES get
+      // clobbered by every call - so a value rlet-pinned there via `contrain_everywhere` conflicts
+      // with any call clobber in its (whole-function) live range: this is the exact cause of a
+      // real `-- SPILL FAILED -- IMPOSSIBLE CONSTRAINT --` assertion hit compiling (defun valid? ...)
+      // (see the development notes). Route these role-bearing names through gRegInfo's own accessors
+      // instead of the positional table.
+      //
+      // The same fix applies to x86's 6 SysV integer argument registers - rdi/rsi/rdx/rcx/r8/r9 -
+      // for the identical reason. An earlier version of this comment claimed these "have no
+      // equivalent fixed role to preserve" - wrong: grepping every `:reg rdi`/`rsi`/`rdx`/`rcx`/
+      // `r8`/`r9` use across all 4 games' goal_src (gkernel.gc's raw asm entry/exit trampolines,
+      // gstate.gc's `carg0`-`carg3` used right before a raw `(.jr func)` indirect call) shows every
+      // single one is named `a0`-`a5`/`carg0`-`carg3` and used purely to read or prepare a
+      // function argument by position, in the exact position the name's SysV index implies (rdi is
+      // always arg0, rsi always arg1, ...) - never as an arbitrary scratch register. Positionally
+      // mapping "rsi" to plain X6 hit the exact same class of bug as the pp/st/offset case: X6
+      // isn't `special`, so it gets clobbered by any call inside the `rlet`'s live range, while the
+      // `rlet` needs it to survive as a fixed argument register throughout. ARM64's own calling
+      // convention already has argument registers in this exact role (`gRegInfo.get_gpr_arg_reg()`,
+      // X0-X7) - route these 6 names there by SysV argument position instead of by raw reg_names[]
+      // index.
+      //
+      // Same story again for x86's 5 general callee-saved scratch registers - rbx/rbp/r10/r11/r12
+      // (x86's own gRegInfo table already marks all 5 `saved`; GOAL's own calling convention
+      // additionally treats r10/r11 as args 6/7, unrelated here) - every `:reg rbx`/`rbp`/`r10`/
+      // `r11`/`r12` use across all 4 games' goal_src is `s0`/`s1`/`s2`/`s3`/`s4`, always in that
+      // exact order, always a scratch pool meant to survive across whatever the surrounding
+      // hand-written asm does (e.g. gkernel.gc's set-to-run-bootstrap stashes incoming values in
+      // s0-s4 specifically so remapping them into the a0-a5 argument registers, right above,
+      // doesn't clobber them first). Once rdi/rsi/rdx/rcx/r8/r9 above started mapping to ARM64's
+      // *argument* registers X0-X5, this positional table would send rbx/rbp/r10/r11/r12 to X3/X5/
+      // X10/X11/X12 - X3 and X5 collide directly with the new rcx(a3)/r9(a5) mapping, defeating
+      // the entire "keep the saved values live while touching the arg registers" point of the
+      // pattern. Route these 5 through gRegInfo's own *saved*-register list instead, by their
+      // position in x86's own `m_saved_gprs` order (`{RBX, RBP, R10, R11, R12}` - see
+      // make_register_info()), which is guaranteed disjoint from the ARM64 arg registers just
+      // above by construction (`m_saved_gprs`/`m_gpr_arg_regs` are separate lists in
+      // make_arm64_register_info()).
+      if (m_instr_set == emitter::InstructionSet::ARM64) {
+        if (std::string_view(nas.name_ptr) == "r13") {
+          return emitter::gRegInfo.get_process_reg();
+        } else if (std::string_view(nas.name_ptr) == "r14") {
+          return emitter::gRegInfo.get_st_reg();
+        } else if (std::string_view(nas.name_ptr) == "r15") {
+          return emitter::gRegInfo.get_offset_reg();
+        } else if (std::string_view(nas.name_ptr) == "rsp") {
+          return emitter::Register(emitter::SP);
+        } else if (std::string_view(nas.name_ptr) == "rdi") {
+          return emitter::gRegInfo.get_gpr_arg_reg(0);
+        } else if (std::string_view(nas.name_ptr) == "rsi") {
+          return emitter::gRegInfo.get_gpr_arg_reg(1);
+        } else if (std::string_view(nas.name_ptr) == "rdx") {
+          return emitter::gRegInfo.get_gpr_arg_reg(2);
+        } else if (std::string_view(nas.name_ptr) == "rcx") {
+          return emitter::gRegInfo.get_gpr_arg_reg(3);
+        } else if (std::string_view(nas.name_ptr) == "r8") {
+          return emitter::gRegInfo.get_gpr_arg_reg(4);
+        } else if (std::string_view(nas.name_ptr) == "r9") {
+          return emitter::gRegInfo.get_gpr_arg_reg(5);
+        } else if (std::string_view(nas.name_ptr) == "rbx") {
+          return emitter::gRegInfo.get_saved_gpr(0);
+        } else if (std::string_view(nas.name_ptr) == "rbp") {
+          return emitter::gRegInfo.get_saved_gpr(1);
+        } else if (std::string_view(nas.name_ptr) == "r10") {
+          return emitter::gRegInfo.get_saved_gpr(2);
+        } else if (std::string_view(nas.name_ptr) == "r11") {
+          return emitter::gRegInfo.get_saved_gpr(3);
+        } else if (std::string_view(nas.name_ptr) == "r12") {
+          return emitter::gRegInfo.get_saved_gpr(4);
+        } else if (std::string_view(nas.name_ptr) == "rax") {
+          // x86's own gRegInfo comment: "return, temp" - rax is GOAL's x86 return register but
+          // also gets borrowed as a plain scratch value in the same asm blocks as the arg/saved
+          // registers above (gkernel.gc's set-to-run-bootstrap etc. call it "temp" for exactly
+          // this). X0 (its positional mapping) now collides with rdi/arg0 above; gRegInfo's own
+          // ARM64 return register (X8) is the semantically closest single register to reuse here,
+          // and is disjoint from every other name already special-cased above.
+          return emitter::gRegInfo.get_gpr_ret_reg();
+        } else if (i < 16) {
+          // Every one of the 16 GPR names (rax through r15) is now individually special-cased
+          // above - this branch is unreachable for ARM64 today, kept only as a defensive fallback.
+          // Only xmm0-15 (i >= 16, below) still go through the plain positional table: they're a
+          // completely separate register file (V0-V15, tagged - see the vector-tag comment at the
+          // top of this function) with no possibility of colliding with any GPR role mapped above,
+          // and nothing in goal_src greps up a role-specific (as opposed to "just some vector
+          // scratch") use of any xmm name.
+          return emitter::Register(emitter::X0 + i);
+        } else {
+          return emitter::Register(emitter::V0 + (i - 16), true);
+        }
+      }
       return emitter::Register(i);
     }
   }
@@ -244,14 +347,17 @@ Val* Compiler::compile_asm_load_sym(const goos::Object& form, const goos::Object
 
 Val* Compiler::compile_asm_jr(const goos::Object& form, const goos::Object& rest, Env* env) {
   auto args = get_va(form, rest);
-  va_check(form, args, {{}}, {{"color", {false, goos::ObjectType::SYMBOL}}});
+  va_check(form, args, {{}}, {{"color", {false, goos::ObjectType::SYMBOL}},
+                             {"stack-return", {false, goos::ObjectType::SYMBOL}}});
   bool color = true;
   if (args.has_named("color")) {
     color = get_true_or_false(form, args.named.at("color"));
   }
 
   auto src = compile_error_guard(args.unnamed.at(0), env)->to_gpr(form, env);
-  env->emit_ir<IR_JumpReg>(form, color, src);
+  const bool stack_return = args.has_named("stack-return") &&
+                            get_true_or_false(form, args.named.at("stack-return"));
+  env->emit_ir<IR_JumpReg>(form, color, src, stack_return);
   return get_none();
 }
 

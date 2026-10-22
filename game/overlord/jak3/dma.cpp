@@ -600,7 +600,13 @@ int DMA_SendToSPUAndSync(const u8* iop_mem,
 
   // run completion interrupts. the interrupt may start another DMA transfer, which should also
   // finish here.
+  u64 j3_intro_dma_iters = 0;
   while (g_DmaInterruptHack.pending) {
+    j3_intro_dma_iters++;
+    if ((j3_intro_dma_iters & 0xffff) == 0) {
+      lg::info("[J3-INTRO-NATIVE] DMA_SendToSPUAndSync stuck? iters={} queue_count={}",
+                j3_intro_dma_iters, g_nSpuDmaQueueCount);
+    }
     complete_dma_now();
   }
   return ret;

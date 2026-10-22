@@ -227,7 +227,6 @@ class Compiler {
                              Env* env);
 
   SymbolVal* compile_get_sym_obj(const std::string& name, Env* env);
-  void color_object_file(FileEnv* env);
   std::vector<u8> codegen_object_file(FileEnv* env);
   bool codegen_and_disassemble_object_file(FileEnv* env,
                                            std::vector<u8>* data_out,
@@ -493,6 +492,11 @@ class Compiler {
                                  Val*& enter_val);
 
  public:
+  // Exposed alongside compile_object_file() (also public) so tests can inspect register
+  // allocation results directly - see ARM64EmitterReturn.early_return_register_assignment in
+  // test/test_emitter_arm64.cpp.
+  void color_object_file(FileEnv* env);
+
   struct ConstPropResult {
     goos::Object value;
     bool has_side_effects = true;

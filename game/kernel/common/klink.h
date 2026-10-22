@@ -116,6 +116,7 @@ struct link_control {
   void jak2_finish(bool jump_from_c_to_goal);
   void jak3_finish(bool jump_from_c_to_goal);
   void jakx_finish(bool jump_from_c_to_goal);
+  void flush_code_cache();
 
   void reset() {
     m_object_data.offset = 0;

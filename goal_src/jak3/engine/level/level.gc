@@ -15,7 +15,17 @@
 
 (defglobalconstant LEVEL_HEAP_SIZE (* NUM_LEVEL_PAGES LEVEL_PAGE_SIZE))
 ;(defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.5) ;; level heap in debug mode is 1.5x larger
-(defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.2) ;; we're gonna use debug mode-style heaps but we don't actually need them at 1.5x size right now
+;; ARM64-compiled level code is meaningfully larger than x86-64 (same root cause as Jak 2's
+;; identical fix, goal_src/jak2/engine/level/level.gc - see that commit's message). At 1.2x, the
+;; "wasall" level's heap ran out of room for a routine 80-byte entity-links-array allocation while
+;; starting a new game, and the game dereferenced the failed (null) allocation, crashing with a
+;; real SIGSEGV on real ARM64/Android hardware. Restore the original debug-mode budget for ARM64
+;; only; PC keeps its smaller 1.2x. Other levels still need device validation. (AI-assisted)
+(#cond
+  ((eq? TARGET_ARCH 'arm64)
+   (defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.5))
+  (#t
+   (defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.2)))
 (defglobalconstant DEBUG_LEVEL_PAGE_SIZE (* 1024 (* DEBUG_LEVEL_HEAP_MULT LEVEL_PAGE_SIZE_KB)))
 (defglobalconstant DEBUG_LEVEL_HEAP_SIZE (* NUM_LEVEL_PAGES DEBUG_LEVEL_PAGE_SIZE))
 
@@ -639,6 +649,12 @@
    This can do both loading, linking, login, and activation.
    This is somewhat similar to level-get-for-use, but requires that you already have the level object.
    This function is the way to transition from loaded to alive/active."
+  (when (name= (-> this name) "intpalrf")
+    (format #t "[J3-INTRO] level-status-update! name=~A from=~A to=~A~%"
+            (-> this name)
+            (-> this status)
+            arg0)
+    )
   (case arg0
     (('inactive)
      (-> this status)
@@ -787,6 +803,16 @@
     (('loading)
      (set! sv-16 (the-as symbol #f))
      (let ((s5-0 (dgo-load-get-next (& sv-16))))
+       (when (and (name= (-> this name) "intpalrf")
+                  (zero? (mod (-> *display* real-clock integral-frame-counter) 60))
+                  )
+         (format #t "[J3-INTRO] load-continue-loading name=~A got=~A done=~A linking=~A frame=~D~%"
+                 (-> this name)
+                 s5-0
+                 sv-16
+                 (-> this linking)
+                 (-> *display* real-clock integral-frame-counter))
+         )
        (when s5-0
          (set! (-> this load-buffer-last) (the-as dgo-header s5-0))
          (+! (-> *level* load-size) (-> (the-as (pointer uint32) s5-0)))

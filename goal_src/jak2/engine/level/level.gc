@@ -29,8 +29,15 @@ into 7 sections, which might explain the weird sizes in the center.
 (defglobalconstant LEVEL_PAGE_SIZE (* LEVEL_PAGE_SIZE_KB 1024)) ;; original value
 
 (defglobalconstant LEVEL_HEAP_SIZE (* NUM_LEVEL_PAGES LEVEL_PAGE_SIZE))
-;(defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.5) ;; level heap in debug mode is 1.5x larger
-(defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.1) ;; we're gonna use debug mode-style heaps but we don't actually need them at 1.5x size right now
+;; ARM64 CWI resident code is ~585 KB larger than x86-64. At 1.1x, reserving
+;; its borrow heaps puts top-base below current before entity birth. Restore
+;; the original debug budget for ARM64, including the borrower pages, while
+;; preserving the PC budget. Other levels still need device validation. (AI-assisted)
+(#cond
+  ((eq? TARGET_ARCH 'arm64)
+   (defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.5))
+  (#t
+   (defglobalconstant DEBUG_LEVEL_HEAP_MULT 1.1)))
 (defglobalconstant DEBUG_LEVEL_PAGE_SIZE (* 1024 (* DEBUG_LEVEL_HEAP_MULT LEVEL_PAGE_SIZE_KB)))
 (defglobalconstant DEBUG_LEVEL_HEAP_SIZE (* NUM_LEVEL_PAGES DEBUG_LEVEL_PAGE_SIZE))
 

@@ -369,7 +369,7 @@ It type checks the arguments for the entry function.
            (.add temp off)
            (.push temp)
            ;; and call!
-           (.jr func)
+           (.jr :stack-return #t func) ;; install the pushed continuation in ARM64 LR (AI-assisted)
            ;; stupid hack so the compiler doesn't throw away these registers.
            (.add carg0 carg1)
            (.add carg2 carg3)

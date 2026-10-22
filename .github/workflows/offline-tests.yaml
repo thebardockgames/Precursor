@@ -1,12 +1,9 @@
 name: Tests
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+  # Same reasoning as build-matrix.yaml - disabled on push/pull_request for
+  # this fork to stop draining Actions minutes on every commit. Manual only.
+  workflow_dispatch: {}
   issue_comment:
     types: [created]
 

@@ -1,5 +1,6 @@
 #version 410 core
 
+
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in int time_of_day_index;
@@ -9,7 +10,7 @@ uniform mat4 camera;
 uniform float fog_constant;
 uniform float fog_min;
 uniform float fog_max;
-uniform sampler1D tex_T10; // note, sampled in the vertex shader on purpose.
+uniform highp sampler2D tex_T10; // note, sampled in the vertex shader on purpose.
 uniform int decal;
 
 out vec4 fragment_color;
@@ -23,7 +24,7 @@ void main() {
   transformed -= camera[2] * position_in.z;
   float Q = fog_constant / transformed.w;
 
-  fogginess = 255 - clamp(-transformed.w + hvdf_offset.w, fog_min, fog_max);
+  fogginess = 255.0 - clamp(-transformed.w + hvdf_offset.w, fog_min, fog_max);
 
   // perspective divide!
   transformed.xyz *= Q;
@@ -32,11 +33,11 @@ void main() {
   // correct xy offset
   transformed.xy -= (2048.);
   // correct z scale
-  transformed.z /= (8388608);
-  transformed.z -= 1;
+  transformed.z /= (8388608.0);
+  transformed.z -= 1.0;
   // correct xy scale
-  transformed.x /= (256);
-  transformed.y /= -(128);
+  transformed.x /= (256.0);
+  transformed.y /= -(128.0);
   // hack
   transformed.xyz *= transformed.w;
   // scissoring area adjust
@@ -44,10 +45,10 @@ void main() {
   gl_Position = transformed;
 
   // time of day lookup
-  fragment_color = texelFetch(tex_T10, time_of_day_index, 0);
+  fragment_color = texelFetch(tex_T10, ivec2(time_of_day_index, 0), 0);
   // color adjustment
-  fragment_color *= 2;
-  fragment_color.a *= 2;
+  fragment_color *= 2.0;
+  fragment_color.a *= 2.0;
 
   if (decal == 1) {
     // tfrag/tie always use TCC=RGB, so even with decal, alpha comes from fragment.

@@ -29,6 +29,8 @@ enum class Mask {
 #define REALLY_INLINE __attribute__((always_inline))
 #elif __APPLE__
 #define REALLY_INLINE __attribute__((always_inline))
+#elif defined(__SWITCH__)
+#define REALLY_INLINE __attribute__((always_inline))
 #else
 #define REALLY_INLINE __forceinline
 #endif

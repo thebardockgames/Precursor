@@ -19,15 +19,26 @@ set(SOUND_SOURCES
   )
 
 add_library(sound STATIC ${SOUND_SOURCES})
-target_link_libraries(sound PRIVATE fmt cubeb common)
-
-add_executable(sndplay 989snd/sndplay.cpp)
-if(WIN32)
-    target_link_libraries(sndplay PRIVATE sound cubeb)
-elseif(APPLE)
-    target_link_libraries(sndplay PRIVATE sound cubeb)
+if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # No cubeb backend for Switch - game/sound/989snd/player.{h,cpp} talks to libnx's audout
+    # service directly instead. See the development notes.
+    target_link_libraries(sound PRIVATE fmt common)
 else()
-    target_link_libraries(sndplay PRIVATE sound cubeb stdc++fs)
+    # cubeb has real Android backends (OpenSL ES / AudioTrack), auto-detected via its own
+    # check_include_files() calls - no Switch-style bypass needed here.
+    target_link_libraries(sound PRIVATE fmt cubeb common)
+endif()
+
+# sndplay is a standalone dev/test tool, not needed on a Switch or Android player build.
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch" AND NOT ANDROID)
+    add_executable(sndplay 989snd/sndplay.cpp)
+    if(WIN32)
+        target_link_libraries(sndplay PRIVATE sound cubeb)
+    elseif(APPLE)
+        target_link_libraries(sndplay PRIVATE sound cubeb)
+    else()
+        target_link_libraries(sndplay PRIVATE sound cubeb stdc++fs)
+    endif()
 endif()
 
 if (NOT WIN32)

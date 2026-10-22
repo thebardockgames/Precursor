@@ -816,7 +816,22 @@
           (set! (-> gp-0 sid) (-> v1-7 id))
           )
       )
-    (if (!= self *target*)
+    (format #t "[J3-INTRO] spool-start-a self=~A anim=~A anim-name=~A parts=~D file0=~A~%"
+            self
+            (-> gp-0 anim name)
+            (-> gp-0 anim anim-name)
+            (-> gp-0 anim parts)
+            (file-status *art-control* (-> gp-0 anim name) 0))
+    (format #t "[J3-INTRO] spool-start-b idle=~A exit=~A spooling=~A current-spool=~A frame-mask=~A master=~A~%"
+            (-> gp-0 idle)
+            (-> gp-0 exit)
+            (-> *setting-control* user-current spooling)
+            (if (-> *setting-control* user-current spool-anim) (-> *setting-control* user-current spool-anim name))
+            (-> *art-control* frame-mask)
+            *master-mode*)
+    (format #t "[J3-INTRO] spool-start-c loading-level=~A loading-status=~A~%"
+            (if (-> *level* loading-level) (-> (-> *level* loading-level) name))
+            (if (-> *level* loading-level) (-> (-> *level* loading-level) status)))    (if (!= self *target*)
         (send-event *target* 'movie)
         )
     (backup-load-state-and-set-cmds *load-state* (-> gp-0 anim command-list))
@@ -850,7 +865,17 @@
                  (logtest? (-> *art-control* frame-mask) 28)
                  (!= *master-mode* 'game)
                  )
-        (format #t "WARNING: ---------------------> loader stall on lock~%")
+        (format #t "[J3-INTRO] spool-lock-wait-a anim=~A part=~D spooling=~A current-spool=~A file=~A~%"
+                (-> gp-0 anim name)
+                (-> gp-0 part)
+                (-> *setting-control* user-current spooling)
+                (if (-> *setting-control* user-current spool-anim) (-> *setting-control* user-current spool-anim name))
+                (file-status *art-control* (-> gp-0 anim name) (-> gp-0 part)))
+        (format #t "[J3-INTRO] spool-lock-wait-b frame-mask=~A master=~A loading-level=~A loading-status=~A~%"
+                (-> *art-control* frame-mask)
+                *master-mode*
+                (if (-> *level* loading-level) (-> (-> *level* loading-level) name))
+                (if (-> *level* loading-level) (-> (-> *level* loading-level) status)))
         (if ((-> gp-0 break-func) self)
             (goto cfg-139)
             )
@@ -905,10 +930,12 @@
           (when (and (not (-> gp-0 paused?)) (< (-> *setting-control* user-current movie-skip-frame) 0.0))
             (format
               #t
-              "WARNING: ---------------------> loader pre stall on art ~S ~D ~A~%"
+              "[J3-INTRO] spool-pre-art-wait anim=~S part=~D file=~A loading-level=~A loading-status=~A~%"
               (-> gp-0 anim name)
               (-> gp-0 part)
               (file-status *art-control* (-> gp-0 anim name) (-> gp-0 part))
+              (if (-> *level* loading-level) (-> (-> *level* loading-level) name))
+              (if (-> *level* loading-level) (-> (-> *level* loading-level) status))
               )
             (set! (-> gp-0 paused?) #t)
             (if (nonzero? (-> gp-0 part))
@@ -972,15 +999,40 @@
           (when (not (-> gp-0 paused?))
             (format
               #t
-              "WARNING: ---------------------> loader stall on art ~S ~D ~A~%"
+              "[J3-INTRO] spool-art-wait anim=~S part=~D file=~A loading-level=~A loading-status=~A~%"
               (-> gp-0 anim name)
               (-> gp-0 part)
               (file-status *art-control* (-> gp-0 anim name) (-> gp-0 part))
+              (if (-> *level* loading-level) (-> (-> *level* loading-level) name))
+              (if (-> *level* loading-level) (-> (-> *level* loading-level) status))
               )
             (set! (-> gp-0 paused?) #t)
             (if (nonzero? (-> gp-0 part))
                 (sound-pause (-> gp-0 sid))
                 )
+            )
+                    (when (time-elapsed? (-> gp-0 old-time) (seconds 1))
+            (format #t "[J3-INTRO] spool-art-heart anim=~A part=~D file=~A loading-level=~A loading-status=~A~%"
+                    (-> gp-0 anim name)
+                    (-> gp-0 part)
+                    (file-status *art-control* (-> gp-0 anim name) (-> gp-0 part))
+                    (if (-> *level* loading-level) (-> (-> *level* loading-level) name))
+                    (if (-> *level* loading-level) (-> (-> *level* loading-level) status)))
+            (format #t "[J3-INTRO] spool-buf0 status=~A load=~A part=~D pending=~A ppart=~D pri=~A~%"
+                    (-> *art-control* buffer 0 status)
+                    (-> *art-control* buffer 0 load-file)
+                    (-> *art-control* buffer 0 load-file-part)
+                    (-> *art-control* buffer 0 pending-load-file)
+                    (-> *art-control* buffer 0 pending-load-file-part)
+                    (-> *art-control* buffer 0 pending-load-file-priority))
+            (format #t "[J3-INTRO] spool-buf1 status=~A load=~A part=~D pending=~A ppart=~D pri=~A~%"
+                    (-> *art-control* buffer 1 status)
+                    (-> *art-control* buffer 1 load-file)
+                    (-> *art-control* buffer 1 load-file-part)
+                    (-> *art-control* buffer 1 pending-load-file)
+                    (-> *art-control* buffer 1 pending-load-file-part)
+                    (-> *art-control* buffer 1 pending-load-file-priority))
+            (set-time! (-> gp-0 old-time))
             )
           (if (logtest? (-> gp-0 flags) (spooler-flags blackout-on-stall))
               (set-blackout-frames (seconds 0.05))
@@ -996,7 +1048,7 @@
         (sound-continue (-> gp-0 sid))
         (format
           #t
-          "WARNING: ---------------------> loader release lock on art ~S ~D ~A~%"
+          "[J3-INTRO] spool-art-ready anim=~S part=~D file=~A~%"
           (-> gp-0 anim name)
           (-> gp-0 part)
           (file-status *art-control* (-> gp-0 anim name) (-> gp-0 part))
@@ -1013,6 +1065,15 @@
         (-> gp-0 sid)
         )
       (let ((s5-8 (get-art-by-name (-> self draw art-group) (-> gp-0 anim anim-name) art-joint-anim)))
+                (format #t "[J3-INTRO] spool-get-art-a anim=~A anim-name=~A part=~D art=~A draw=~A~%"
+                (-> gp-0 anim name)
+                (-> gp-0 anim anim-name)
+                (-> gp-0 part)
+                s5-8
+                (-> self draw art-group))
+        (format #t "[J3-INTRO] spool-get-art-b loading-level=~A loading-status=~A~%"
+                (if (-> *level* loading-level) (-> (-> *level* loading-level) name))
+                (if (-> *level* loading-level) (-> (-> *level* loading-level) status)))
         (cond
           (s5-8
             (ja-channel-set! 1)
@@ -1021,6 +1082,15 @@
               (str-play-async (-> gp-0 anim name) (-> gp-0 sid) 1024 2)
               (set! (-> *art-control* active-stream) (-> gp-0 anim name))
               )
+            (format #t "[J3-INTRO] spool-part-play-a anim=~A part=~D frames=~D speed=~A sid=~A~%"
+                    (-> gp-0 anim name)
+                    (-> gp-0 part)
+                    (-> s5-8 frames num-frames)
+                    (-> s5-8 speed)
+                    (-> gp-0 sid))
+            (format #t "[J3-INTRO] spool-part-play-b audio-pos=~D playing=~A~%"
+                    (current-str-pos (-> gp-0 sid))
+                    (str-id-is-playing? (-> gp-0 sid)))
             (let* ((f30-0 (* 0.05859375 (-> s5-8 speed)))
                    (f28-0 (+ (-> gp-0 part-audio-start) (/ (the float (+ (-> s5-8 frames num-frames) -1)) f30-0)))
                    )

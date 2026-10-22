@@ -27,7 +27,23 @@
 
 static void* get_proc(const char *namez);
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(__SWITCH__)
+// No dlfcn.h/dlopen on Switch. Not a real gap: this project always calls
+// gladLoadGLLoader() with an explicit loader function (SDL_GL_GetProcAddress) and checks *its*
+// return value directly instead of calling the no-arg gladLoadGL() (which is what actually
+// invokes open_gl() below) - see game/graphics/pipelines/opengl.cpp. These are dead code for
+// this platform, just present so the file still compiles.
+static void* libGL;
+
+static
+int open_gl(void) {
+    return 0;
+}
+
+static
+void close_gl(void) {
+}
+#elif defined(_WIN32) || defined(__CYGWIN__)
 #ifndef _WINDOWS_
 #undef APIENTRY
 #endif
@@ -130,7 +146,7 @@ void* get_proc(const char *namez) {
     void* result = NULL;
     if(libGL == NULL) return NULL;
 
-#if !defined(__APPLE__) && !defined(__HAIKU__)
+#if !defined(__APPLE__) && !defined(__HAIKU__) && !defined(__SWITCH__)
     if(gladGetProcAddressPtr != NULL) {
         result = gladGetProcAddressPtr(namez);
     }
@@ -138,6 +154,8 @@ void* get_proc(const char *namez) {
     if(result == NULL) {
 #if defined(_WIN32) || defined(__CYGWIN__)
         result = (void*)GetProcAddress((HMODULE) libGL, namez);
+#elif defined(__SWITCH__)
+        result = NULL;  // unreachable: libGL is always NULL on Switch, see open_gl() above.
 #else
         result = dlsym(libGL, namez);
 #endif

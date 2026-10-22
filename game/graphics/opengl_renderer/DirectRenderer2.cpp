@@ -138,8 +138,10 @@ void DirectRenderer2::flush_pending(SharedRenderState* render_state, ScopedProfi
       (m_vertices.next_vertex * sizeof(Vertex)) + (m_vertices.next_index * sizeof(u32));
 
   // initial OpenGL setup
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   render_state->shaders[ShaderId::DIRECT2].activate();
 
   // draw call loop
@@ -176,8 +178,10 @@ void DirectRenderer2::draw_call_loop_simple(SharedRenderState* render_state,
 
 void DirectRenderer2::draw_call_loop_grouped(SharedRenderState* render_state,
                                              ScopedProfilerNode& prof) {
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   u32 draw_idx = 0;
   while (draw_idx < m_next_free_draw) {
     const auto& draw = m_draw_buffer[draw_idx];

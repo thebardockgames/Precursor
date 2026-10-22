@@ -8,6 +8,7 @@
 #include "decompiler/config.h"
 #include "decompiler/decompilation_process.h"
 #include "decompiler/extractor/extractor_util.h"
+#include "decompiler/extractor/pipeline.h"
 #include "goalc/compiler/Compiler.h"
 
 #include "third-party/CLI11.hpp"
@@ -25,10 +26,9 @@ IsoFile extract_files(fs::path input_file_path, fs::path extracted_iso_path) {
 
   fs::create_directories(extracted_iso_path);
 
-  auto fp = file_util::open_file(input_file_path, "rb");
+  std::unique_ptr<FILE, decltype(&fclose)> fp(file_util::open_file(input_file_path, "rb"), &fclose);
   ASSERT_MSG(fp, "failed to open input ISO file");
-  IsoFile iso = unpack_iso_files(fp, extracted_iso_path, true, true);
-  fclose(fp);
+  IsoFile iso = unpack_iso_files(fp.get(), extracted_iso_path, true, true);
   return iso;
 }
 
@@ -134,11 +134,13 @@ ExtractorErrorCode decompile(const fs::path& in_folder,
 const std::unordered_map<std::string, GameIsoFlags> game_iso_flag_names = {
     {"jak1-black-label", FLAG_JAK1_BLACK_LABEL}};
 
-ExtractorErrorCode compile(const fs::path& iso_data_path, const std::string& data_subfolder) {
+ExtractorErrorCode compile(const fs::path& iso_data_path,
+                          const std::string& data_subfolder,
+                          emitter::InstructionSet instruction_set) {
   // Determine which config to use from the database
   const auto version_info = get_version_info_or_default(iso_data_path);
 
-  Compiler compiler(game_name_to_version(version_info.game_name), emitter::InstructionSet::X86);
+  Compiler compiler(game_name_to_version(version_info.game_name), instruction_set);
   compiler.make_system().set_constant("*iso-data*", absolute(iso_data_path).string());
   compiler.make_system().set_constant("*use-iso-data-path*", true);
   file_util::set_iso_data_dir(absolute(iso_data_path));
@@ -169,6 +171,7 @@ ExtractorErrorCode compile(const fs::path& iso_data_path, const std::string& dat
   return ExtractorErrorCode::SUCCESS;
 }
 
+#ifndef OPENGOAL_EXTRACTOR_LIBRARY
 void launch_game(const std::string& game_version) {
   system(fmt::format("\"{}\" -g {}", (file_util::get_jak_project_dir() / "../gk").string(),
                      game_version)
@@ -403,3 +406,4 @@ int main(int argc, char** argv) {
 
   return 0;
 }
+#endif

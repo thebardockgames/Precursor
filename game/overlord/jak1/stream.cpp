@@ -8,6 +8,7 @@
 
 #include <cstring>
 
+#include "common/log/log.h"
 #include "common/util/Assert.h"
 #include "common/util/FileUtil.h"
 
@@ -211,6 +212,19 @@ void* RPC_PLAY([[maybe_unused]] unsigned int fno, void* _cmd, int size) {
     }
 
     file = isofs->find_in(namebuf);
+
+    // Name each dialogue request, so a report shows which line was queued/played/stopped and
+    // whether it exists in VAGDIR. (AI-assisted)
+    // The game re-sends its preload request every frame, so only log a queue when it changes.
+    static char last_queued[sizeof(cmd->name)] = {};
+    if (cmd->result != 2 || strncmp(last_queued, cmd->name, sizeof(last_queued)) != 0) {
+      if (cmd->result == 2) {
+        strncpy(last_queued, cmd->name, sizeof(last_queued));
+      }
+      lg::debug("[OVERLORD] str-play {} '{}'{}",
+                cmd->result == 0 ? "play" : (cmd->result == 1 ? "stop" : "queue"), cmd->name,
+                vag ? "" : " (not in VAGDIR)");
+    }
 
     if (cmd->result == 0) {
       PlayVAGStream(file, vag, cmd->address, 0x400, 1, nullptr);

@@ -30,8 +30,8 @@ FramebufferTexturePair::FramebufferTexturePair(int w, int h, u64 texture_format,
     glBindTexture(GL_TEXTURE_2D, m_texture);
     // I don't know if we really need to do this. whatever uses this texture should figure it out.
 
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, m_texture, i);
-    GLenum draw_buffers[1] = {GLenum(GL_COLOR_ATTACHMENT0 + i)};
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_texture, i);
+    GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, draw_buffers);
     auto status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
@@ -46,12 +46,17 @@ FramebufferTexturePair::FramebufferTexturePair(int w, int h, u64 texture_format,
         case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
           lg::error("GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT\n");
           break;
+#ifndef __ANDROID__
+        // These two enums don't exist in GLES at all - pure diagnostic-message cases, not
+        // functional logic (the switch already handles the real completeness failure via
+        // `status != GL_FRAMEBUFFER_COMPLETE` above regardless of which case matches).
         case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
           lg::error("GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER\n");
           break;
         case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
           lg::error("GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER\n");
           break;
+#endif
         case GL_FRAMEBUFFER_UNSUPPORTED:
           lg::error("GL_FRAMEBUFFER_UNSUPPORTED\n");
           break;

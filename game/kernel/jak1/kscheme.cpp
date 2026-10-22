@@ -7,6 +7,7 @@
 #include "common/symbols.h"
 #include "common/util/Timer.h"
 
+#include "game/kernel/common/arm64_trampoline.h"
 #include "game/kernel/common/fileio.h"
 #include "game/kernel/common/kdgo.h"
 #include "game/kernel/common/kdsnetm.h"
@@ -286,15 +287,14 @@ void _arg_call_arm64();
 Ptr<Function> make_function_from_c_systemv(void* func, bool arg3_is_pp) {
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        *(s7 + FIX_SYM_FUNCTION_TYPE), 0x40, UNKNOWN_PP));
+#ifdef __aarch64__
+  emit_arm64_c_call_trampoline(mem.c(), func, (void*)_arg_call_arm64, arg3_is_pp);
+  return mem.cast<Function>();
+#else
   auto f = (uint64_t)func;
   auto target_function = (u8*)&f;
-#ifndef __aarch64__
   auto trampoline_function_addr = _arg_call_systemv;
-#else
-  auto trampoline_function_addr = _arg_call_arm64;
-#endif
   auto trampoline = (u8*)&trampoline_function_addr;
-  // TODO - x86 code still being emitted below
 
   // movabs rax, target_function
   int offset = 0;
@@ -329,6 +329,7 @@ Ptr<Function> make_function_from_c_systemv(void* func, bool arg3_is_pp) {
   // CacheFlush(mem, 0x34);
 
   return mem.cast<Function>();
+#endif
 }
 
 /*!
@@ -420,13 +421,13 @@ Ptr<Function> make_stack_arg_function_from_c_systemv(void* func) {
   // allocate a function object on the global heap
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        *(s7 + FIX_SYM_FUNCTION_TYPE), 0x40, UNKNOWN_PP));
+#ifdef __aarch64__
+  emit_arm64_c_call_trampoline(mem.c(), func, (void*)_stack_call_arm64, false);
+  return mem.cast<Function>();
+#else
   auto f = (uint64_t)func;
   auto target_function = (u8*)&f;
-#ifndef __aarch64__
   auto trampoline_function_addr = _stack_call_systemv;
-#else
-  auto trampoline_function_addr = _stack_call_arm64;
-#endif
   auto trampoline = (u8*)&trampoline_function_addr;
 
   // movabs rax, target_function
@@ -454,6 +455,7 @@ Ptr<Function> make_stack_arg_function_from_c_systemv(void* func) {
   // CacheFlush(mem, 0x34);
 
   return mem.cast<Function>();
+#endif
 }
 
 #ifdef _WIN32
@@ -532,9 +534,13 @@ Ptr<Function> make_nothing_func() {
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        *(s7 + FIX_SYM_FUNCTION_TYPE), 0x14, UNKNOWN_PP));
 
+#ifdef __aarch64__
+  emit_arm64_return_stub(mem.c(), false);
+#else
   // a single x86-64 ret.
   mem.c()[0] = 0xc3;
   // CacheFlush(mem, 8);
+#endif
   return mem.cast<Function>();
 }
 
@@ -544,12 +550,16 @@ Ptr<Function> make_nothing_func() {
 Ptr<Function> make_zero_func() {
   auto mem = Ptr<u8>(alloc_heap_object(s7.offset + FIX_SYM_GLOBAL_HEAP,
                                        *(s7 + FIX_SYM_FUNCTION_TYPE), 0x14, UNKNOWN_PP));
+#ifdef __aarch64__
+  emit_arm64_return_stub(mem.c(), true);
+#else
   // xor eax, eax
   mem.c()[0] = 0x31;
   mem.c()[1] = 0xc0;
   // ret
   mem.c()[2] = 0xc3;
   // CacheFlush(mem, 8);
+#endif
   return mem.cast<Function>();
 }
 
@@ -968,6 +978,13 @@ u64 type_typep(Ptr<Type> t1, Ptr<Type> t2) {
  * Return is method
  */
 u64 method_set(u32 type_, u32 method_id, u32 method) {
+#if defined(__ANDROID__) && defined(__aarch64__)
+  static int debug_method_set_count = 0;
+  debug_method_set_count++;
+  fprintf(stderr, "[TEMP DEBUG] method_set call #%d: type=0x%x method_id=%u method=0x%x\n",
+          debug_method_set_count, type_, method_id, method);
+  fflush(stderr);
+#endif
   Ptr<Type> type(type_);
   if (method_id > 127)
     printf("[METHOD SET ERROR] tried to set method %d\n", method_id);
@@ -1073,8 +1090,107 @@ u64 method_set(u32 type_, u32 method_id, u32 method) {
       symAsType->get_method(method_id).offset = method;
     }
   }
+#if defined(__ANDROID__) && defined(__aarch64__)
+  fprintf(stderr, "[TEMP DEBUG] method_set call #%d: returned\n", debug_method_set_count);
+  fflush(stderr);
+#endif
   return method;
 }
+
+#if defined(__ANDROID__) && defined(__aarch64__)
+/*!
+ * TEMP DEBUG: given a real (host) address inside the GOAL heap (e.g. a crashing PC), find the
+ * closest known GOAL function or method whose code starts at or before it, by scanning the
+ * symbol table (functions bound to a global symbol, e.g. top-level `defun`s) and every type's
+ * method table (methods aren't bound to their own symbol, only reachable via their type's symbol).
+ * Best-effort diagnostic only, meant to be called from the crash handler in game/main.cpp - see
+ * the development notes.
+ */
+void debug_symbolicate_goal_addr(u64 real_addr) {
+  if (!g_ee_main_mem || s7.offset == 0) {
+    fprintf(stderr, "[symbolicate] kernel/symbol table not initialized yet\n");
+    return;
+  }
+  if (real_addr < (u64)g_ee_main_mem || real_addr >= (u64)g_ee_main_mem + EE_MAIN_MEM_SIZE) {
+    fprintf(stderr, "[symbolicate] address 0x%llx is outside the GOAL heap entirely\n",
+            (unsigned long long)real_addr);
+    return;
+  }
+  u32 target = (u32)(real_addr - (u64)g_ee_main_mem);
+  fprintf(stderr, "[symbolicate] target goal-offset: 0x%x\n", target);
+
+  // Bounded to a fixed-size local buffer via "%.63s" below (NOT plain "%s") - a garbage/
+  // non-null-terminated `str` pointer (e.g. an uninitialized or spuriously-matched symbol slot)
+  // must never let printf read past the end of the 128MB heap mapping, which would fault a
+  // *second* time inside this signal handler - a synchronous SIGSEGV raised while the same signal
+  // is (implicitly, no SA_NODEFER) still blocked, which Android silently kills the process for,
+  // with no further log output at all. Learned this the hard way: an earlier version of this
+  // function using plain "%s" did exactly that instead of printing a result.
+  auto safe_str = [](Ptr<String> str) -> const char* {
+    if (str.offset == 0 || str.offset >= (u32)EE_MAIN_MEM_SIZE) {
+      return "???";
+    }
+    return str->data();
+  };
+
+  u32 best_value = 0;
+  char best_desc[256];
+  snprintf(best_desc, sizeof(best_desc), "<none found>");
+
+  auto scan_range = [&](u32 lo, u32 hi) {
+    for (u32 sym = lo; sym < hi; sym += 8) {
+      u32 symValue = *Ptr<u32>(sym);
+      // Most slots in this range are unused/uninitialized (hash 0), so symValue is often garbage
+      // that can coincidentally match the BASIC_OFFSET tag bits. Without this bounds check,
+      // `symValue - 4` below can point far outside the 128MB heap mapping and fault a *second*
+      // time inside this signal handler, killing the process with no further log output at all
+      // (same class of bug the safe_str() lambda above already guards against for string reads).
+      // The lower bound must be EE_MAIN_MEM_LOW_PROTECT, not just 4: runtime.cpp mprotect()s
+      // [0, EE_MAIN_MEM_LOW_PROTECT) as PROT_NONE, so a garbage symValue landing anywhere in that
+      // range still faults even though it's nominally "in bounds" - confirmed by hitting exactly
+      // this second fault (with zero further output, same as the far-out-of-range case) even
+      // after the first version of this bounds check landed.
+      if ((symValue & OFFSET_MASK) != BASIC_OFFSET || symValue > target ||
+          symValue < (u32)EE_MAIN_MEM_LOW_PROTECT + 4 || symValue >= (u32)EE_MAIN_MEM_SIZE) {
+        continue;
+      }
+      auto objType = *Ptr<Ptr<Type>>(symValue - 4);
+
+      if (objType.offset == *(s7 + FIX_SYM_FUNCTION_TYPE) && symValue > best_value) {
+        best_value = symValue;
+        snprintf(best_desc, sizeof(best_desc), "function '%.63s'",
+                 safe_str(info(Ptr<Symbol>(sym))->str));
+      } else if (objType.offset == *(s7 + FIX_SYM_TYPE_TYPE)) {
+        // this symbol is a type - also check every method's code pointer, since methods aren't
+        // bound to their own symbol.
+        auto symAsType = Ptr<Type>(symValue);
+        const char* type_name = safe_str(info(symAsType->symbol)->str);
+        // cap defensively - 127 is the same bound method_set() itself enforces on method_id, so
+        // no legitimate type should ever have more methods than that.
+        u32 method_count = symAsType->num_methods;
+        if (method_count > 127) {
+          method_count = 127;
+        }
+        for (u32 mid = 0; mid < method_count; mid++) {
+          u32 method_value = symAsType->get_method(mid).offset;
+          if ((method_value & OFFSET_MASK) == BASIC_OFFSET && method_value <= target &&
+              method_value > best_value) {
+            best_value = method_value;
+            snprintf(best_desc, sizeof(best_desc), "method %d of type '%.63s'", mid, type_name);
+          }
+        }
+      }
+    }
+  };
+
+  scan_range(SymbolTable2.offset, s7.offset);
+  scan_range(s7.offset, LastSymbol.offset);
+
+  fprintf(stderr, "[symbolicate] best match: %s at goal-offset 0x%x (+0x%x bytes into it)\n",
+          best_desc, best_value, target - best_value);
+  fflush(stderr);
+}
+#endif
 
 /*!
  * Call a GOAL method of a given type.

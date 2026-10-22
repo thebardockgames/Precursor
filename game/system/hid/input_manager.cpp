@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cmath>
 
+#include "android_touch_controls.h"
 #include "input_manager.h"
 #include "sdl_util.h"
 
@@ -14,7 +15,9 @@
 #include "game/graphics/pipelines/opengl.h"
 #include "game/runtime.h"
 
+#ifndef __SWITCH__
 #include "third-party/SDL/include/SDL3/SDL_hints.h"
+#endif
 #include "third-party/imgui/imgui.h"
 
 InputManager::InputManager(SDL_Window* window)
@@ -38,7 +41,13 @@ InputManager::InputManager(SDL_Window* window)
       auto p = scoped_prof("input_manager::init::sdl_init_subsystem");
       // initializing the controllers on startup can sometimes take a very long time
       // so we isolate that to here instead
+#ifdef __SWITCH__
+      // SDL3 renamed SDL_INIT_GAMECONTROLLER to SDL_INIT_GAMEPAD and flipped the return value to
+      // bool (SDL2's SDL_InitSubSystem returns 0 on success, negative on failure).
+      if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0) {
+#else
       if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
+#endif
         sdl_util::log_error(
             "Could not initialize SDL Controller support, controllers will not work!");
       }
@@ -63,6 +72,9 @@ InputManager::InputManager(SDL_Window* window)
       m_data[m_keyboard_and_mouse_port] = std::make_shared<PadData>();
     }
     m_command_binds = CommandBindingGroups();
+#ifdef __ANDROID__
+    android_touch_controls::initialize();
+#endif
     refresh_device_list();
     ignore_background_controller_events(false);
     hide_cursor(m_auto_hide_mouse);
@@ -76,6 +88,9 @@ InputManager::~InputManager() {
     for (auto& device : m_available_controllers) {
       device->close_device();
     }
+#ifdef __ANDROID__
+    android_touch_controls::shutdown();
+#endif
     m_settings->save_settings();
   }
 }
@@ -89,6 +104,18 @@ void InputManager::refresh_device_list() {
     // Enumerate devices
     // TODO - if this was done on a separate thread, there would be no hitch in the game thread
     // but of course, that presents other synchronization challenges.
+#ifdef __SWITCH__
+    // SDL2 enumerates joysticks by plain int device index (0..SDL_NumJoysticks()-1), no
+    // SDL_GetJoysticks() array of opaque IDs to fetch.
+    const int num_joysticks = SDL_NumJoysticks();
+    if (num_joysticks > 0) {
+      for (int i = 0; i < num_joysticks; i++) {
+        if (!SDL_IsGamepad(i)) {
+          lg::error("Controller with device id {} is not avaiable via the GameController API", i);
+          continue;
+        }
+        auto controller = std::make_shared<GameController>(i, m_settings);
+#else
     int num_joysticks = 0;
     auto joysticks = SDL_GetJoysticks(&num_joysticks);
     if (num_joysticks > 0) {
@@ -98,6 +125,7 @@ void InputManager::refresh_device_list() {
           continue;
         }
         auto controller = std::make_shared<GameController>(joysticks[i], m_settings);
+#endif
         if (!controller->is_loaded()) {
           lg::error("Unable to successfully connect to GameController with id {}, skipping", i);
           continue;
@@ -166,6 +194,18 @@ void InputManager::hide_cursor(const bool hide_cursor) {
   }
   // NOTE - seems like an SDL bug, but the cursor will be visible / locked to the center of the
   // screen if you use the 'start menu' to exit the window / return to it (atleast in windowed mode)
+#ifdef __SWITCH__
+  // SDL2 has a single SDL_ShowCursor(toggle) instead of SDL3's separate zero-arg
+  // SDL_HideCursor()/SDL_ShowCursor(), returning the resulting state rather than a bool success.
+  if (hide_cursor && SDL_ShowCursor(SDL_DISABLE) < 0) {
+    sdl_util::log_error("Unable to hide mouse cursor");
+    return;
+  }
+  if (!hide_cursor && SDL_ShowCursor(SDL_ENABLE) < 0) {
+    sdl_util::log_error("Unable to show mouse cursor");
+    return;
+  }
+#else
   if (hide_cursor && !SDL_HideCursor()) {
     sdl_util::log_error("Unable to hide mouse cursor");
     return;
@@ -174,6 +214,7 @@ void InputManager::hide_cursor(const bool hide_cursor) {
     sdl_util::log_error("Unable to show mouse cursor");
     return;
   }
+#endif
   m_mouse_currently_hidden = hide_cursor;
 }
 

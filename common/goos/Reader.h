@@ -73,7 +73,9 @@ class Reader {
   Object read_from_string(const std::string& str,
                           bool add_top_level = true,
                           const std::optional<std::string>& string_name = {});
+#ifndef __SWITCH__
   std::optional<Object> read_from_stdin(const std::string& prompt, REPL::Wrapper& repl);
+#endif
   Object read_from_file(const std::vector<std::string>& file_path, bool check_encoding = false);
 
   SymbolTable symbolTable;

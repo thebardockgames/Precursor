@@ -1,9 +1,12 @@
 #version 410 core
 
+
 out vec4 color;
 
 in vec4 fragment_color;
-noperspective in vec3 tex_coord;
+// See sky.vert's matching `out vec3 tex_coord` for why dropping `noperspective` here is exact,
+// not an approximation.
+in vec3 tex_coord;
 uniform sampler2D tex_T0;
 
 void main() {

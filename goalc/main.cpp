@@ -13,6 +13,7 @@
 #include "common/versions/versions.h"
 
 #include "goalc/compiler/Compiler.h"
+#include "goalc/emitter/InstructionSet.h"
 
 #include "fmt/color.h"
 #include "fmt/format.h"
@@ -43,6 +44,11 @@ int main(int argc, char** argv) {
   // TODO - a lot of these flags could be deprecated and moved into `repl-config.json`
   CLI::App app{"OpenGOAL Compiler / REPL"};
   app.add_option("-c,--cmd", cmd, "Specify a command to run, no REPL is launched in this mode");
+  std::string script_file;
+  app.add_option("--script", script_file,
+                 "Run each top-level form of FILE as if typed into the REPL (so code is sent to the "
+                 "target once (lt) connects), then exit without resetting the target. "
+                 "(script-wait SECONDS) pauses between forms. (AI-assisted)");
   app.add_option("-u,--user", username,
                  "Specify the username to use for your user profile in 'goal_src/user/'");
   app.add_option("-p,--port", nrepl_port, "Specify the nREPL port.  Defaults to 8181");
@@ -52,9 +58,25 @@ int main(int argc, char** argv) {
   app.add_option("--proj-path", project_path_override,
                  "Specify the location of the 'data/' folder");
   app.add_option("--iso-path", iso_path_override, "Specify the location of the 'iso_data/' folder");
+  std::string arch = "x86";
+  app.add_option("-a,--arch", arch,
+                 "Target instruction set for emitted code: 'x86' (default) or 'arm64'. The "
+                 "ARM64 backend is a work-in-progress upstream/research effort (see "
+                 "the development notes) - selecting it does not imply compiled code has been "
+                 "verified correct, only that this build attempts to emit it.");
   define_common_cli_arguments(app);
   app.validate_positionals();
   CLI11_PARSE(app, argc, argv);
+
+  emitter::InstructionSet instruction_set;
+  if (arch == "x86") {
+    instruction_set = emitter::InstructionSet::X86;
+  } else if (arch == "arm64") {
+    instruction_set = emitter::InstructionSet::ARM64;
+  } else {
+    lg::error("Error: unknown --arch '{}', expected 'x86' or 'arm64'", arch);
+    return 1;
+  }
 
   GameVersion game_version = game_name_to_version(game);
 
@@ -103,13 +125,51 @@ int main(int argc, char** argv) {
   // if a command is provided on the command line, no REPL just run the compiler on it
   try {
     if (!cmd.empty()) {
-      compiler = std::make_unique<Compiler>(game_version, emitter::InstructionSet::X86);
+      compiler = std::make_unique<Compiler>(game_version, instruction_set);
       compiler->run_front_end_on_string(cmd);
       return 0;
     }
   } catch (std::exception& e) {
     lg::error("Compiler Fatal Error: {}", e.what());
     return 1;
+  }
+
+  // Scripted REPL session, used by scripts/android-port/devloop.sh to drive a running game.
+  // (AI-assisted)
+  if (!script_file.empty()) {
+    try {
+      compiler = std::make_unique<Compiler>(
+          game_version, instruction_set, std::make_optional(repl_config), username,
+          std::make_unique<REPL::Wrapper>(username, repl_config, startup_file, false));
+      goos::Reader reader;
+      auto forms = reader.read_from_string(file_util::read_text_file(fs::path(script_file)));
+      // read_from_string wraps everything in (top-level ...)
+      auto* it = &forms.as_pair()->cdr;
+      while (it->is_pair()) {
+        const auto& form = it->as_pair()->car;
+        if (form.is_pair() && form.as_pair()->car.is_symbol() &&
+            form.as_pair()->car.as_symbol().name_ptr == std::string("script-wait")) {
+          const auto& arg = form.as_pair()->cdr.as_pair()->car;
+          double seconds = arg.is_float() ? arg.as_float() : (double)arg.as_int();
+          lg::info("[script] wait {}s", seconds);
+          std::this_thread::sleep_for(std::chrono::milliseconds((int64_t)(seconds * 1000)));
+        } else {
+          lg::info("[script] > {}", form.print());
+          if (compiler->handle_repl_string(form.print()) == ReplStatus::WANT_EXIT) {
+            break;
+          }
+        }
+        it = &it->as_pair()->cdr;
+      }
+      // Leave the game running: the Compiler destructor would otherwise reset the target.
+      if (compiler->listener().is_connected()) {
+        compiler->listener().disconnect();
+      }
+    } catch (std::exception& e) {
+      lg::error("Script Error: {}", e.what());
+      return 1;
+    }
+    return 0;
   }
 
   // Otherwise, start the REPL normally
@@ -130,7 +190,7 @@ int main(int argc, char** argv) {
   // the compiler may throw an exception if it fails to load its standard library.
   try {
     compiler = std::make_unique<Compiler>(
-        game_version, emitter::InstructionSet::X86, std::make_optional(repl_config), username,
+        game_version, instruction_set, std::make_optional(repl_config), username,
         std::make_unique<REPL::Wrapper>(username, repl_config, startup_file, nrepl_server_ok));
     // Start nREPL Server if it spun up successfully
     if (nrepl_server_ok) {
@@ -158,7 +218,7 @@ int main(int argc, char** argv) {
           compiler->save_repl_history();
         }
         compiler = std::make_unique<Compiler>(
-            game_version, emitter::InstructionSet::X86, std::make_optional(repl_config), username,
+            game_version, instruction_set, std::make_optional(repl_config), username,
             std::make_unique<REPL::Wrapper>(username, repl_config, startup_file, nrepl_server_ok));
         status = ReplStatus::OK;
       }

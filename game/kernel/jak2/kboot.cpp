@@ -90,7 +90,14 @@ s32 goal_main(int argc, const char* const* argv) {
 
 void KernelDispatch(u32 dispatcher_func) {
   // place our stack at the end of EE memory
+#ifdef __aarch64__
+  // ARM64 needs a real 16-byte-aligned top here, not x86's "-8" (see the identical fix + full
+  // explanation in game/kernel/jak1/kboot.cpp) - confirmed as a real SIGBUS on real ARM64/Android
+  // hardware.
+  u64 goal_stack = (u64(g_ee_main_mem) + EE_MAIN_MEM_SIZE - 16) & ~0xFull;
+#else
   u64 goal_stack = u64(g_ee_main_mem) + EE_MAIN_MEM_SIZE - 8;
+#endif
 
   // try to get a message from the listener, and process it if needed
   Ptr<char> new_message = WaitForMessageAndAck();

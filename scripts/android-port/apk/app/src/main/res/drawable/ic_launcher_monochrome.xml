@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Precursor themed icon (Android 13+): the system tints this single-color shape. (AI-assisted) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M29,54a25,25 0,1 0,50 0a25,25 0,1 0,-50 0z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M39,54a15,15 0,1 0,30 0a15,15 0,1 0,-30 0z M54,22l5,7h-10z M86,54l-7,5v-10z M54,86l-5,-7h10z M22,54l7,-5v10z" />
+</vector>

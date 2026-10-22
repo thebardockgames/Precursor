@@ -305,7 +305,10 @@
                    (when (not (and (or (< v1-36 0) (time-elapsed? s3-1 (seconds 3)) (time-elapsed? s4-4 (seconds 60))) *sound-player-enable*))
                      (suspend)
                      (goto cfg-27)))))
-              (else (go level-hint-error "NO SOUND " arg0))))))
+              (else
+               ;; og:preserve-this log missing dialogue, for Android bug reports (AI-assisted)
+               (#when (eq? TARGET_ARCH 'arm64) (format 0 "level-hint: no sound for ~S (stream never started)~%" arg0))
+               (go level-hint-error "NO SOUND " arg0))))))
       (go level-hint-exit)))
 
 (defstate level-hint-ambient-sound (level-hint)
@@ -357,7 +360,10 @@
                              *sound-player-enable*))
                (suspend)
                (goto cfg-19)))))
-        (else (go level-hint-error "NO SOUND " arg0)))
+        (else
+               ;; og:preserve-this log missing dialogue, for Android bug reports (AI-assisted)
+               (#when (eq? TARGET_ARCH 'arm64) (format 0 "level-hint: no sound for ~S (stream never started)~%" arg0))
+               (go level-hint-error "NO SOUND " arg0)))
       (go level-hint-exit)))
 
 (defstate level-hint-error (level-hint)

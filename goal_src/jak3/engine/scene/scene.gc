@@ -532,6 +532,13 @@
     (let ((s4-1 (get-level-by-heap-ptr-and-status *level* (the-as pointer arg0) 'active)))
       (init-spool-by-scene! arg0 (-> this anim))
       (set! (-> this level) s4-1)
+      (format #t "[J3-INTRO] scene-select idx=~D name=~A anim=~A load=~A end=~A level=~A~%"
+              (-> this scene-index)
+              (-> arg0 name)
+              (-> arg0 anim)
+              (-> arg0 load-point)
+              (-> arg0 end-point)
+              (if s4-1 (-> s4-1 name)))
       )
     (set! (-> this scene) arg0)
     )
@@ -540,13 +547,48 @@
 
 (defmethod scene-player-method-23 ((this scene-player) (arg0 string) (arg1 symbol))
   (let ((gp-0 (scene-player-method-24 this (the-as scene arg0) #t)))
+    (format #t "[J3-INTRO] prepare-start idx=~D scene=~A art=~A entity=~A actors=~D flags=~A~%"
+            (-> this scene-index)
+            (-> gp-0 name)
+            (-> gp-0 art-group)
+            (-> gp-0 entity)
+            (-> gp-0 actor length)
+            (-> gp-0 scene-flags))
+    (format #t "[J3-INTRO] prepare-start-mask scene=~A mask=~A~%"
+            (-> gp-0 name)
+            (-> gp-0 mask-to-clear))
     (when (logtest? (-> gp-0 scene-flags) (scene-flags scf3))
       (let ((a0-2 *traffic-manager*))
         (send-event a0-2 'restore-default-settings)
         )
       )
     (send-event *target* 'draw (logtest? (-> gp-0 scene-flags) (scene-flags scf0)))
+    (format #t "[J3-INTRO] prepare-target-draw scene=~A draw=~A~%"
+            (-> gp-0 name)
+            (logtest? (-> gp-0 scene-flags) (scene-flags scf0)))
+    (format #t "[J3-INTRO] entity-lookup-before scene=~A entity=~A loading=~A~%"
+            (-> gp-0 name)
+            (-> gp-0 entity)
+            (load-in-progress? *level*))
     (let ((s3-0 (entity-by-name (-> gp-0 entity))))
+      (format #t "[J3-INTRO] entity-lookup-after scene=~A entity=~A found=~A loading=~A~%"
+              (-> gp-0 name)
+              (-> gp-0 entity)
+              s3-0
+              (load-in-progress? *level*))
+      (while (and (-> gp-0 entity) (not s3-0) (load-in-progress? *level*))
+        (format #t "[J3-INTRO] entity-wait scene=~A entity=~A loading=~A~%"
+                (-> gp-0 name)
+                (-> gp-0 entity)
+                (load-in-progress? *level*))
+        (suspend)
+        (set! s3-0 (entity-by-name (-> gp-0 entity)))
+        )
+      (format #t "[J3-INTRO] entity-wait-done scene=~A entity=~A found=~A loading=~A~%"
+              (-> gp-0 name)
+              (-> gp-0 entity)
+              s3-0
+              (load-in-progress? *level*))
       (when (and (-> gp-0 entity) (not s3-0))
         (format 0 "ERROR: SCENE: scene ~A can not find entity ~A~%" (-> gp-0 name) (-> gp-0 entity))
         (go process-drawable-art-error (-> gp-0 entity))
@@ -554,16 +596,42 @@
       (set! (-> this main-entity) (the-as entity-actor s3-0))
       (cond
         (s3-0
+          (format #t "[J3-INTRO] entity-setup-before scene=~A main=~A root=~A~%"
+                  (-> gp-0 name)
+                  (-> this main-entity)
+                  (-> this root))
           (process-drawable-from-entity! this (-> this main-entity))
+          (format #t "[J3-INTRO] entity-setup-after scene=~A main=~A root=~A~%"
+                  (-> gp-0 name)
+                  (-> this main-entity)
+                  (-> this root))
           (logclear! (-> this mask) (process-mask actor-pause))
           )
         (else
+          (format #t "[J3-INTRO] entity-setup-none scene=~A root=~A~%"
+                  (-> gp-0 name)
+                  (-> this root))
           (vector-reset! (-> this root trans))
           (quaternion-identity! (-> this root quat))
           )
         )
       )
+    (format #t "[J3-INTRO] prepare-entity scene=~A entity=~A main=~A~%"
+            (-> gp-0 name)
+            (-> gp-0 entity)
+            (-> this main-entity))
+    (format #t "[J3-INTRO] prepare-load-art-before scene=~A art=~A default-level=~A loading=~A~%"
+            (-> gp-0 name)
+            (-> gp-0 art-group)
+            (if (-> *level* level-default) (-> (-> *level* level-default) name))
+            (load-in-progress? *level*))
     (let ((s3-1 (load-to-heap-by-name (-> *level* level-default art-group) (-> gp-0 art-group) 'load global 0)))
+      (format #t "[J3-INTRO] prepare-load-art-after scene=~A art=~A result=~A len=~A loading=~A~%"
+              (-> gp-0 name)
+              (-> gp-0 art-group)
+              s3-1
+              (if s3-1 (-> s3-1 length))
+              (load-in-progress? *level*))
       (when (not s3-1)
         (format 0 "ERROR: SCENE: scene ~A can not find art-group ~A~%" (-> gp-0 name) (-> gp-0 art-group))
         (go process-drawable-art-error (-> gp-0 art-group))
@@ -585,9 +653,17 @@
     (cond
       ((< (+ (-> this scene-index) 1) (-> this scene-list length))
        (let ((a0-34 (scene-player-method-24 this (-> this scene-list (+ (-> this scene-index) 1)) #f)))
+         (format #t "[J3-INTRO] prepare-next-scene scene=~A next=~A next-anim-before=~A~%"
+                 (-> gp-0 name)
+                 (if a0-34 (-> a0-34 name))
+                 (-> this next-anim anim-name))
          (cond
            (a0-34
              (init-spool-by-scene! a0-34 (-> this next-anim))
+             (format #t "[J3-INTRO] prepare-next-spool scene=~A next=~A next-anim=~A~%"
+                     (-> gp-0 name)
+                     (-> a0-34 name)
+                     (-> this next-anim anim-name))
              )
            (else
              (set! (-> this next-anim anim-name) (the-as string 0))
@@ -604,6 +680,12 @@
     (dotimes (s3-2 (-> gp-0 actor length))
       (let ((s2-0 (-> gp-0 actor s3-2)))
         (set! (-> s2-0 process) (the-as handle #f))
+        (format #t "[J3-INTRO] prepare-actor-before scene=~A idx=~D actor=~A art=~A level=~A~%"
+                (-> gp-0 name)
+                s3-2
+                (-> s2-0 name)
+                (-> s2-0 art-group)
+                (-> s2-0 level))
         (let ((s1-0 (if (-> s2-0 level)
                         (level-get *level* (-> s2-0 level))
                         (-> *level* level-default)
@@ -615,6 +697,17 @@
                     )
                 )
               )
+          (format #t "[J3-INTRO] prepare-actor-resolved scene=~A idx=~D actor=~A level-proc=~A~%"
+                  (-> gp-0 name)
+                  s3-2
+                  (-> s2-0 name)
+                  s1-0)
+          (format #t "[J3-INTRO] prepare-actor-skel scene=~A idx=~D status=~A skeleton=~A first=~A~%"
+                  (-> gp-0 name)
+                  s3-2
+                  (if s1-0 (-> s1-0 status))
+                  v1-53
+                  (if v1-53 (-> v1-53 data 0)))
           (cond
             ((or (not s1-0) (not (or (= (-> s1-0 status) 'active) (= (-> s1-0 status) 'reserved))))
              (format
@@ -633,13 +726,28 @@
                )
              )
             (else
+              (format #t "[J3-INTRO] prepare-actor-load-before scene=~A idx=~D art=~A dep=~A loading=~A~%"
+                      (-> gp-0 name)
+                      s3-2
+                      (-> s2-0 art-group)
+                      (-> v1-53 data 0)
+                      (load-in-progress? *level*))
               (load-to-heap-by-name (-> s1-0 art-group) (the-as string (-> v1-53 data 0)) 'load global 0)
+              (format #t "[J3-INTRO] prepare-actor-load-after scene=~A idx=~D art=~A loading=~A~%"
+                      (-> gp-0 name)
+                      s3-2
+                      (-> s2-0 art-group)
+                      (load-in-progress? *level*))
               )
             )
           )
         )
       )
+    (format #t "[J3-INTRO] prepare-actors-done scene=~A loading=~A~%"
+            (-> gp-0 name)
+            (load-in-progress? *level*))
     (process-entity-status! this (entity-perm-status no-kill) #t)
+    (format #t "[J3-INTRO] prepare-entity-status-done scene=~A~%" (-> gp-0 name))
     (when arg1
       (kill-persister *setting-control* (the-as engine-pers 'fail-sfx-volume) 'sfx-volume)
       (kill-persister *setting-control* (the-as engine-pers 'fail-dialog-volume) 'dialog-volume)
@@ -688,8 +796,21 @@
         )
       (set-setting! 'gem #f 0.0 0)
       (set-setting! 'citizen-fights #f 0.0 0)
+      (format #t "[J3-INTRO] prepare-apply-settings-before scene=~A movie=~A sound-bank=~A loading=~A~%"
+              (-> gp-0 name)
+              (-> *setting-control* user-current movie)
+              (-> *setting-control* user-current sound-bank-load)
+              (load-in-progress? *level*))
       (apply-settings *setting-control*)
+      (format #t "[J3-INTRO] prepare-apply-settings-after scene=~A movie=~A loading=~A~%"
+              (-> gp-0 name)
+              (-> *setting-control* user-current movie)
+              (load-in-progress? *level*))
       )
+    (format #t "[J3-INTRO] prepare-done scene=~A idx=~D loading=~A~%"
+            (-> gp-0 name)
+            (-> this scene-index)
+            (load-in-progress? *level*))
     )
   0
   (none)
@@ -803,6 +924,7 @@
                 (send-event (ppointer->process *subtitle3*) 'movie-no-subtitle (-> (the scene-player self) anim name) #f (ja-aframe-num 0))))
         (let ((gp-0 (res-lump-struct (-> v1-9 extra) 'subtitle-range (array subtitle-range))))
           (when gp-0
+
             (let ((f30-0 (ja-aframe-num 0))
                   (s5-0 (the-as int (-> *setting-control* user-current subtitle-language)))
                   )
@@ -887,6 +1009,11 @@
   :virtual #t
   :enter (behavior ((arg0 symbol))
     (set-time! (-> self state-time))
+    (format #t "[J3-INTRO] wait-enter arg=~A scene=~A preload=~A idx=~D~%"
+            arg0
+            (if (-> self scene) (-> self scene name))
+            (-> self preload-continue)
+            (-> self scene-index))
     (if (= (-> *game-info* demo-state) 101)
         (set-setting! 'audio-language #f 0.0 5)
         )
@@ -899,6 +1026,13 @@
                   )
             )
         (when gp-0
+          (format #t "[J3-INTRO] wait-continue decoded=~A vis=~A flags=~A want0=~A want1=~A want2=~A~%"
+                  (-> gp-0 name)
+                  (-> gp-0 vis-nick)
+                  (-> gp-0 flags)
+                  (-> gp-0 want 0 name)
+                  (-> gp-0 want 1 name)
+                  (-> gp-0 want 2 name))
           (when (-> self scene)
             (set-setting! 'borrow (-> self scene borrow) 0.0 0)
             (apply-settings *setting-control*)
@@ -1034,6 +1168,10 @@
             (suspend)
             )
           )
+        (format #t "[J3-INTRO] wait-movie-settings-clear scene=~A bg-a=~A loading=~A~%"
+                (if (-> self scene) (-> self scene name))
+                (-> *setting-control* user-current bg-a)
+                (load-in-progress? *level*))
         (remove-setting! 'movie)
         (remove-setting! 'sound-bank-load)
         (remove-setting! 'movie-name)
@@ -1070,6 +1208,10 @@
           (when (and (zero? s5-1) (< (-> self scene-index) (-> self scene-list length)))
             (scene-player-method-24 self (-> self scene-list (-> self scene-index)) #t)
             (when (-> self scene)
+              (format #t "[J3-INTRO] wait-reselect scene=~A load=~A end=~A~%"
+                      (-> self scene name)
+                      (-> self scene load-point)
+                      (-> self scene end-point))
               (set-setting! 'borrow (-> self scene borrow) 0.0 0)
               (apply-settings *setting-control*)
               )
@@ -1494,6 +1636,24 @@
       )
     (while (and (< (-> self scene-index) (-> self scene-list length)) (not (-> self aborted?)))
       (scene-player-method-23 self (the-as string (-> self scene-list (-> self scene-index))) #t)
+      (format #t "[J3-INTRO] play-load-state-a scene=~A idx=~D loading=~A loading-level=~A loading-status=~A~%"
+              (-> self scene name)
+              (-> self scene-index)
+              (load-in-progress? *level*)
+              (if (-> *level* loading-level) (-> (-> *level* loading-level) name))
+              (if (-> *level* loading-level) (-> (-> *level* loading-level) status)))
+      (format #t "[J3-INTRO] play-load-state-b default=~A load-level=~A want0=~A target0=~A want1=~A target1=~A~%"
+              (if (-> *level* level-default) (-> (-> *level* level-default) name))
+              (-> *level* load-level)
+              (-> *load-state* want 0 name)
+              (-> *load-state* target 0 name)
+              (-> *load-state* want 1 name)
+              (-> *load-state* target 1 name))      (format #t "[J3-INTRO] play-start idx=~D scene=~A anim=~A load=~A end=~A~%"
+              (-> self scene-index)
+              (-> self scene name)
+              (-> self scene anim)
+              (-> self scene load-point)
+              (-> self scene end-point))
       (kill-persister *setting-control* (the-as engine-pers 'title-control-scene) 'render)
       (set-blackout-frames (seconds 0.1))
       (suspend)
@@ -1529,14 +1689,31 @@
             (spooler-flags blackout-on-stall)
             )
         )
+      (format #t "[J3-INTRO] play-finished idx=~D scene=~A aborted=~A bg-a=~A loading=~A movie=~A~%"
+              (-> self scene-index)
+              (-> self scene name)
+              (-> self aborted?)
+              (-> *setting-control* user-current bg-a)
+              (load-in-progress? *level*)
+              (-> *setting-control* user-current movie))
       (while (-> self child)
         (deactivate (-> self child 0))
         )
       (+! (-> self scene-index) 1)
+      (format #t "[J3-INTRO] advance next-idx=~D len=~D aborted=~A~%"
+              (-> self scene-index)
+              (-> self scene-list length)
+              (-> self aborted?))
       (when (and (< (-> self scene-index) (-> self scene-list length)) (not (-> self aborted?)))
         (let ((v1-61 (scene-player-method-24 self (-> self scene-list (-> self scene-index)) #t)))
           (when v1-61
             (let ((a0-26 (scene-decode-continue (-> v1-61 load-point))))
+              (format #t "[J3-INTRO] next-load-check scene=~A load=~A decoded=~A flags=~A scene-wait?=~A~%"
+                      (-> v1-61 name)
+                      (-> v1-61 load-point)
+                      (if a0-26 (-> a0-26 name))
+                      (if a0-26 (-> a0-26 flags))
+                      (and a0-26 (logtest? (-> a0-26 flags) (continue-flags scene-wait))))
               (set! a0-29 (when (and a0-26 (logtest? (-> a0-26 flags) (continue-flags scene-wait)))
                             (go-virtual wait a0-29)
                             a0-29
@@ -1863,6 +2040,11 @@
       )
     )
   (set! (-> self preload-continue) arg2)
+  (format #t "[J3-INTRO] scene-player-init wait=~A preload=~A scene-count=~D first=~A~%"
+          arg1
+          arg2
+          (-> self scene-list length)
+          (-> self scene-list 0))
   (set! (-> self camera) (the-as handle #f))
   (set! (-> self wait) arg1)
   (set! (-> self pre-cut-frame) #f)

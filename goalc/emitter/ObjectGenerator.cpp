@@ -398,20 +398,55 @@ void ObjectGenerator::handle_temp_jump_links(int seg) {
     ASSERT(link.jump_instr.seg == seg);
     ASSERT(link.dest.seg == seg);
     const auto& jump_instr = function.instructions.at(link.jump_instr.instr_id);
-    ASSERT(jump_instr.get_imm_size() == 4);
 
-    // 1). patch = instruction location + location of imm in instruction.
-    int patch_location = function.instruction_to_byte_in_data.at(link.jump_instr.instr_id) +
-                         jump_instr.offset_of_imm();
-
-    // 2). source rip = jump instr + 1 location
-    int source_rip = function.instruction_to_byte_in_data.at(link.jump_instr.instr_id + 1);
-
-    // 3). dest rip = first instruction of dest IR
+    // 3). dest rip = first instruction of dest IR (same computation for both architectures)
     int dest_rip =
         function.instruction_to_byte_in_data.at(function.ir_to_instruction.at(link.dest.ir_id));
 
-    patch_data<s32>(seg, patch_location, dest_rip - source_rip);
+    if (m_instruction_set == InstructionSet::ARM64) {
+      // ARM64 branch immediates are packed into specific bit ranges of the single 32-bit
+      // instruction word (not a separate byte-aligned literal like x86's rel32 - see
+      // InstructionARM64::branch_imm_width()), are measured in 4-byte *words* rather than bytes,
+      // and (unlike x86, which is relative to the address of the instruction *after* the jump) are
+      // relative to the address of the branch instruction itself.
+      auto width = jump_instr.branch_imm_width();
+      ASSERT_MSG(width == 19 || width == 26,
+                 "ARM64 jump link target isn't a real branch instruction");
+
+      // 1). patch = the whole instruction word - the immediate is packed inside it, there's no
+      // separate imm byte range to seek to like on x86.
+      int patch_location = function.instruction_to_byte_in_data.at(link.jump_instr.instr_id);
+
+      // 2). source pc = the branch instruction's own address (not +1, unlike x86)
+      int source_rip = patch_location;
+
+      int byte_dist = dest_rip - source_rip;
+      ASSERT_MSG(byte_dist % 4 == 0, "ARM64 branch target isn't word-aligned");
+      s32 word_dist = byte_dist / 4;
+
+      u32 mask = (width == 19) ? (0x7ffffu << 5) : 0x3ffffffu;
+      ASSERT_MSG((width == 19) ? (word_dist >= -262144 && word_dist <= 262143)
+                               : (word_dist >= -33554432 && word_dist <= 33554431),
+                "ARM64 branch target out of range for its immediate field width");
+      u32 imm_bits = (width == 19) ? ((static_cast<u32>(word_dist) & 0x7ffffu) << 5)
+                                  : (static_cast<u32>(word_dist) & 0x3ffffffu);
+
+      u32 existing_word;
+      memcpy(&existing_word, m_data_by_seg.at(seg).data() + patch_location, sizeof(existing_word));
+      u32 patched_word = (existing_word & ~mask) | imm_bits;
+      patch_data<u32>(seg, patch_location, patched_word);
+    } else {
+      ASSERT(jump_instr.get_imm_size() == 4);
+
+      // 1). patch = instruction location + location of imm in instruction.
+      int patch_location = function.instruction_to_byte_in_data.at(link.jump_instr.instr_id) +
+                           jump_instr.offset_of_imm();
+
+      // 2). source rip = jump instr + 1 location
+      int source_rip = function.instruction_to_byte_in_data.at(link.jump_instr.instr_id + 1);
+
+      patch_data<s32>(seg, patch_location, dest_rip - source_rip);
+    }
   }
 }
 
@@ -551,19 +586,27 @@ void ObjectGenerator::emit_link_rip(int seg) {
     // offset into target (u32)
     // patch loc (u32) (todo, make this a s8 offset from offset into current?)
 
+    const auto& src_func = m_function_data_by_seg.at(rec.instr.seg).at(rec.instr.func_id);
+    const auto& src_instr = src_func.instructions.at(rec.instr.instr_id);
+    // x86's RIP-relative addressing always patches a plain 4-byte displacement field packed
+    // inside the instruction itself. ARM64 has no equivalent single contiguous field for this (see
+    // emitter::ARM64::load_cross_seg_addr() in IGenARM64.cpp) and instead embeds a full 8-byte
+    // literal, patched as a plain data word rather than instruction bits - same link-table
+    // mechanism, just the wider of the two kinds the runtime linker (game/kernel/*/klink.cpp)
+    // already supports for exactly this reason.
+    ASSERT(src_instr.get_disp_size() == 4 || src_instr.get_disp_size() == 8);
+    bool wide = src_instr.get_disp_size() == 8;
+
     // kind
-    out.push_back(LINK_DISTANCE_TO_OTHER_SEG_32);
+    out.push_back(wide ? LINK_DISTANCE_TO_OTHER_SEG_64 : LINK_DISTANCE_TO_OTHER_SEG_32);
     // target segment
     out.push_back(rec.target_segment);
     // offset into current
-    const auto& src_func = m_function_data_by_seg.at(rec.instr.seg).at(rec.instr.func_id);
     push_data<u32>(src_func.instruction_to_byte_in_data.at(rec.instr.instr_id + 1), out);
     // offset into target
     ASSERT(rec.offset_in_segment >= 0);
     push_data<u32>(rec.offset_in_segment, out);
     // patch location
-    const auto& src_instr = src_func.instructions.at(rec.instr.instr_id);
-    ASSERT(src_instr.get_disp_size() == 4);
     push_data<u32>(
         src_func.instruction_to_byte_in_data.at(rec.instr.instr_id) + src_instr.offset_of_disp(),
         out);

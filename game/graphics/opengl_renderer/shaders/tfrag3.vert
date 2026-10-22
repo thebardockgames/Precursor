@@ -1,5 +1,6 @@
 #version 410 core
 
+
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in int time_of_day_index;
@@ -11,7 +12,7 @@ uniform mat4 camera;
 uniform float fog_constant;
 uniform float fog_min;
 uniform float fog_max;
-uniform sampler1D tex_T10; // note, sampled in the vertex shader on purpose.
+uniform highp sampler2D tex_T10; // note, sampled in the vertex shader on purpose.
 uniform int decal;
 
 out vec4 fragment_color;
@@ -37,23 +38,23 @@ void main() {
   // Step 3, the camera transform
   vec3 vert = position_in - cam_trans.xyz;
   vec4 transformed = -pc_camera[3];
-  transformed.w = 0;
+  transformed.w = 0.0;
   transformed -= pc_camera[0] * vert.x;
   transformed -= pc_camera[1] * vert.y;
   transformed -= pc_camera[2] * vert.z;
 
   // do fog!
-  fogginess = 255 - clamp(-transformed.w + hvdf_offset.w, fog_min, fog_max);
+  fogginess = 255.0 - clamp(-transformed.w + hvdf_offset.w, fog_min, fog_max);
 
   // scissoring area adjust
   transformed.y *= SCISSOR_ADJUST * HEIGHT_SCALE;
   gl_Position = transformed;
 
   // time of day lookup
-  fragment_color = texelFetch(tex_T10, time_of_day_index, 0);
+  fragment_color = texelFetch(tex_T10, ivec2(time_of_day_index, 0), 0);
   // color adjustment
-  fragment_color *= 2;
-  fragment_color.a *= 2;
+  fragment_color *= 2.0;
+  fragment_color.a *= 2.0;
 
   if (decal == 1) {
     // tfrag/tie always use TCC=RGB, so even with decal, alpha comes from fragment.

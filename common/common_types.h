@@ -31,6 +31,6 @@ struct u128 {
 };
 static_assert(sizeof(u128) == 16, "u128");
 
-#if defined __linux || defined __linux__ || defined __APPLE__
+#if defined __linux || defined __linux__ || defined __APPLE__ || defined __SWITCH__
 #define OS_POSIX
 #endif

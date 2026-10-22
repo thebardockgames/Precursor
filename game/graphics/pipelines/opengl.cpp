@@ -4,11 +4,16 @@
  */
 
 #include "opengl.h"
+#include "game/system/hid/android_touch_controls.h"
 
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <regex>
 #include <sstream>
+#ifdef __ANDROID__
+#include <unistd.h>
+#endif
 
 #include "common/dma/dma_copy.h"
 #include "common/global_profiler/GlobalProfiler.h"
@@ -31,13 +36,19 @@
 #include "game/system/hid/sdl_util.h"
 
 #include "fmt/format.h"
+#ifdef __SWITCH__
+#include <SDL.h>
+
+#include "third-party/imgui/imgui_impl_sdl2.h"
+#else
 #include "third-party/SDL/include/SDL3/SDL.h"
 #include "third-party/SDL/include/SDL3/SDL_hints.h"
 #include "third-party/SDL/include/SDL3/SDL_version.h"
+#include "third-party/imgui/imgui_impl_sdl3.h"
+#endif
 #include "third-party/imgui/imgui.h"
 #include "third-party/imgui/imgui_freetype.h"
 #include "third-party/imgui/imgui_impl_opengl3.h"
-#include "third-party/imgui/imgui_impl_sdl3.h"
 #include "third-party/imgui/imgui_style.h"
 #define STBI_WINDOWS_UTF8
 #include "common/util/dialogs.h"
@@ -97,6 +108,24 @@ struct GraphicsData {
 std::unique_ptr<GraphicsData> g_gfx_data;
 
 static bool gl_inited = false;
+
+// A failed window/context creation is fatal. On desktop the message names the desktop GL version;
+// on Android tinyfiledialogs has no UI and the game kept running into a SIGSEGV, so show a native
+// SDL message box with the real requirement (OpenGL ES 3.2) and exit cleanly. (AI-assisted)
+static void report_display_failure(const char* desktop_message) {
+#ifdef __ANDROID__
+  lg::error("Display initialization failed: OpenGL ES 3.2 is required");
+  SDL_ShowSimpleMessageBox(
+      SDL_MESSAGEBOX_ERROR, "Precursor",
+      "Tu teléfono no pudo crear el contexto OpenGL ES 3.2 que necesita el juego.\n\n"
+      "Your device could not create the OpenGL ES 3.2 context this game needs.",
+      nullptr);
+  lg::finish();
+  _exit(3);
+#else
+  dialogs::create_error_message_dialog("Critical Error Encountered", desktop_message);
+#endif
+}
 static int gl_init(GfxGlobalSettings& settings) {
   prof().instant_event("ROOT");
   Timer gl_init_timer;
@@ -105,7 +134,12 @@ static int gl_init(GfxGlobalSettings& settings) {
     auto p = scoped_prof("startup::sdl::init_sdl");
     // remove SDL garbage from hooking signal handler.
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+#ifdef __SWITCH__
+    // SDL2's SDL_Init returns 0 on success, negative on failure (SDL3 flipped this to bool).
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+#else
     if (!SDL_Init(SDL_INIT_VIDEO)) {
+#endif
       sdl_util::log_error("Could not initialize SDL, exiting");
       dialogs::create_error_message_dialog("Critical Error Encountered",
                                            "Could not initialize SDL, exiting");
@@ -116,16 +150,39 @@ static int gl_init(GfxGlobalSettings& settings) {
   {
     auto p = scoped_prof("startup::sdl::get_version_info");
 
+#ifdef __SWITCH__
+    // SDL2's version query is out-param based, unlike SDL3's int-returning SDL_VERSION/GetVersion.
+    SDL_version compiled_sdl_version;
+    SDL_VERSION(&compiled_sdl_version);
+    SDL_version linked_sdl_version;
+    SDL_GetVersion(&linked_sdl_version);
+    lg::info("SDL Initialized, compiled with version - {}.{}.{} | linked with version - {}.{}.{}",
+             compiled_sdl_version.major, compiled_sdl_version.minor, compiled_sdl_version.patch,
+             linked_sdl_version.major, linked_sdl_version.minor, linked_sdl_version.patch);
+#else
     auto compiled_sdl_version = SDL_VERSION;
     auto linked_sdl_version = SDL_GetVersion();
     lg::info("SDL Initialized, compiled with version - {} | linked with version - {}",
              compiled_sdl_version, linked_sdl_version);
+#endif
   }
 
   {
     auto p = scoped_prof("startup::sdl::set_gl_attributes");
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#ifdef __ANDROID__
+    // Android's EGL only ever exposes EGL_OPENGL_ES_API, never desktop GL (see opengl.h) - request
+    // a real GLES context instead of a desktop core profile. GLES 3.2 was chosen after auditing
+    // every GL feature this renderer actually uses (not just the nominal "needs GL 4.1/4.3" - see
+    // the development notes' "Android GLES 3.2 renderer port" section) - nothing here needs anything
+    // past GLES 3.2 (no geometry/tessellation/compute shaders, no bindless textures, no
+    // multi-draw-indirect), and 3.2 is essentially universal on real Android hardware (API 24+,
+    // ~2016 onward).
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     if (settings.debug) {
       SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
@@ -137,6 +194,7 @@ static int gl_init(GfxGlobalSettings& settings) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 #else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+#endif
 #endif
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
@@ -175,7 +233,11 @@ static void init_imgui(SDL_Window* window,
   ImGui::applyFontStyle();
 
   // set up to get inputs for this window
+#ifdef __SWITCH__
+  ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+#else
   ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
+#endif
 
   // NOTE: imgui's setup calls functions that may fail intentionally, and attempts to disable error
   // reporting so these errors are invisible. But it does not work, and some weird X11 default
@@ -183,7 +245,10 @@ static void init_imgui(SDL_Window* window,
   SDL_ClearError();
 
   // set up the renderer
-  ImGui_ImplOpenGL3_Init(glsl_version.c_str());
+  // An empty glsl_version means "let imgui_impl_opengl3.cpp auto-detect its own GLSL version" -
+  // it specifically checks for a real nullptr, not just an empty C-string, to trigger that path
+  // (see its ImGui_ImplOpenGL3_Init()), so this can't just forward glsl_version.c_str() unchanged.
+  ImGui_ImplOpenGL3_Init(glsl_version.empty() ? nullptr : glsl_version.c_str());
 }
 
 static std::shared_ptr<GfxDisplay> gl_make_display(int width,
@@ -195,14 +260,21 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   // Setup the window
   prof().instant_event("ROOT");
   prof().begin_event("startup::sdl::create_window");
+#ifdef __SWITCH__
+  // SDL2's SDL_CreateWindow takes explicit x/y position (SDL3 dropped that param) and has no
+  // per-window HIGH_PIXEL_DENSITY concept (moot on Switch's fixed-resolution displays anyway).
+  SDL_Window* window =
+      SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
+                       SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+#else
   SDL_Window* window =
       SDL_CreateWindow(title, width, height,
                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+#endif
   prof().end_event();
   if (!window) {
     sdl_util::log_error("gl_make_display failed - Could not create display window");
-    dialogs::create_error_message_dialog(
-        "Critical Error Encountered",
+    report_display_failure(
         "Unable to create OpenGL window.\nOpenGOAL requires OpenGL 4.3.\nEnsure your GPU "
         "supports this and your drivers are up to date.");
     return NULL;
@@ -214,8 +286,7 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   prof().end_event();
   if (!gl_context) {
     sdl_util::log_error("gl_make_display failed - Could not create OpenGL Context");
-    dialogs::create_error_message_dialog(
-        "Critical Error Encountered",
+    report_display_failure(
         "Unable to create OpenGL context.\nOpenGOAL requires OpenGL 4.3.\nEnsure your GPU "
         "supports this and your drivers are up to date.");
     return NULL;
@@ -223,12 +294,16 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
 
   {
     auto p = scoped_prof("startup::sdl::assign_context");
+#ifdef __SWITCH__
+    // SDL2's SDL_GL_MakeCurrent returns 0 on success, negative on failure (SDL3 uses bool).
+    if (SDL_GL_MakeCurrent(window, gl_context) != 0) {
+#else
     if (!SDL_GL_MakeCurrent(window, gl_context)) {
+#endif
       sdl_util::log_error("gl_make_display failed - Could not associated context with window");
-      dialogs::create_error_message_dialog("Critical Error Encountered",
-                                           "Unable to create OpenGL window with context.\nOpenGOAL "
-                                           "requires OpenGL 4.3.\nEnsure your GPU "
-                                           "supports this and your drivers are up to date.");
+      report_display_failure(
+          "Unable to create OpenGL window with context.\nOpenGOAL requires OpenGL 4.3.\nEnsure "
+          "your GPU supports this and your drivers are up to date.");
       return NULL;
     }
   }
@@ -236,8 +311,21 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   if (!gl_inited) {
     {
       auto p = scoped_prof("startup::sdl::glad_init");
+#ifdef __ANDROID__
+      // No loader needed at all on Android - real GLES entry points are directly exported,
+      // linkable symbols in libGLESv3.so (see game/graphics/pipelines/opengl.h's __ANDROID__
+      // branch), unlike desktop GL which needs glad/eglGetProcAddress for anything past GL 1.1.
+      if (false) {
+#elif defined(__SWITCH__)
+      // gladLoadGL() (no args) unconditionally calls glad's own internal dlopen()-based loader
+      // (open_gl() in third-party/glad/src/glad.c), which doesn't exist on Switch. Redundant
+      // anyway once gladLoadGLLoader() has already been called with an explicit loader function -
+      // its own return value already tells us whether loading succeeded.
+      if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
+#else
       gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
       if (!gladLoadGL()) {
+#endif
         lg::error("GL init fail");
         dialogs::create_error_message_dialog("Critical Error Encountered",
                                              "Unable to initialize OpenGL API.\nOpenGOAL requires "
@@ -252,17 +340,27 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
     }
     gl_inited = true;
     const char* gl_version = (const char*)glGetString(GL_VERSION);
+#ifdef __ANDROID__
+    // No glad on Android (see above) - no GLVersion global to read, just print the raw
+    // GL_VERSION string (GLES reports it as e.g. "OpenGL ES 3.2 <driver info>").
+    lg::info("OpenGL ES initialized - {}", gl_version);
+#else
     lg::info("OpenGL initialized - v{}.{} | Renderer: {}", GLVersion.major, GLVersion.minor,
              gl_version);
+#endif
   }
 
   {
     auto p = scoped_prof("startup::sdl::window_extras");
     float dpi = 1.0f;
+#ifndef __SWITCH__
+    // No per-window display-scale query in SDL2, and no meaningful concept of it on Switch's
+    // fixed-resolution displays anyway - just use the default of 1.0f there.
     float display_scale = SDL_GetWindowDisplayScale(window);
     if (display_scale > 0.0) {
       dpi = display_scale * 96.0f;
     }
+#endif
 
     // Setup Window Icon
     const auto image_path = file_util::get_jak_project_dir() / "game" / "assets" /
@@ -275,13 +373,25 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
       auto icon_data = stbi_load(image_path.string().c_str(), &icon_width, &icon_height, nullptr,
                                  STBI_rgb_alpha);
       if (icon_data) {
+#ifdef __SWITCH__
+        // SDL2's equivalent of SDL_CreateSurfaceFrom takes a bit-depth instead of a pixel format
+        // enum, and frees with SDL_FreeSurface instead of SDL_DestroySurface.
+        SDL_Surface* icon_surf = SDL_CreateRGBSurfaceWithFormatFrom(
+            (void*)icon_data, icon_width, icon_height, 32, 4 * icon_width,
+            SDL_PIXELFORMAT_RGBA32);
+#else
         SDL_Surface* icon_surf = SDL_CreateSurfaceFrom(
             icon_width, icon_height, SDL_PIXELFORMAT_RGBA32, (void*)icon_data, 4 * icon_width);
+#endif
         if (!icon_surf) {
           sdl_util::log_error("unable to generate surface from app icon data");
         } else {
           SDL_SetWindowIcon(window, icon_surf);
+#ifdef __SWITCH__
+          SDL_FreeSurface(icon_surf);
+#else
           SDL_DestroySurface(icon_surf);
+#endif
         }
         stbi_image_free(icon_data);
       } else {
@@ -300,7 +410,18 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   {
     auto p = scoped_prof("startup::sdl::init_imgui");
     // setup imgui
-#ifdef __APPLE__
+#ifdef __ANDROID__
+    // Passing a real GLSL version string here always overrides imgui_impl_opengl3.cpp's own
+    // IMGUI_IMPL_OPENGL_ES3 auto-detection (which otherwise picks the correct "#version 300 es"
+    // itself - see that file's ImGui_ImplOpenGL3_Init()) - the desktop "#version 430" string
+    // below was being passed unconditionally even on Android, and GLES's compiler flatly rejects
+    // "430" as an unknown version (confirmed via a real crash on real hardware: SIGABRT from
+    // imgui's own assert after ImGui_ImplOpenGL3_CreateDeviceObjects() failed to compile with
+    // that string). Passing nullptr here restores the auto-detection this project's other
+    // Android-specific ES3 wiring (game/CMakeLists.txt's IMGUI_IMPL_OPENGL_ES3 auto-select
+    // comment) already assumed was in effect.
+    init_imgui(window, gl_context, "");
+#elif __APPLE__
     init_imgui(window, gl_context, "#version 410");
 #else
     init_imgui(window, gl_context, "#version 430");
@@ -355,6 +476,23 @@ void GLDisplay::init_splash() {
       file_util::read_text_file(file_util::get_file_path({shader_folder, "splash.vert"}));
   auto frag_src =
       file_util::read_text_file(file_util::get_file_path({shader_folder, "splash.frag"}));
+
+#ifdef __ANDROID__
+  // Same runtime `#version 410 core` -> GLSL ES substitution as Shader.cpp - this function reads
+  // its shader source directly instead of going through the Shader class, so it needs its own
+  // copy of the substitution. See Shader.cpp for the full rationale.
+  static const std::string kGlesHeader =
+      "#version 320 es\n"
+      "precision highp float;\n"
+      "precision highp int;\n"
+      "precision highp sampler2D;\n"
+      "precision highp sampler2DArray;\n"
+      "precision highp samplerCube;\n"
+      "precision highp sampler2DShadow;\n"
+      "precision highp sampler3D;\n";
+  vert_src = std::regex_replace(vert_src, std::regex("#version 410 core"), kGlesHeader);
+  frag_src = std::regex_replace(frag_src, std::regex("#version 410 core"), kGlesHeader);
+#endif
 
   constexpr int len = 1024;
   GLint compile_ok;
@@ -446,10 +584,19 @@ GLDisplay::~GLDisplay() {
   io.IniFilename = nullptr;
   io.LogFilename = nullptr;
   ImGui_ImplOpenGL3_Shutdown();
+#ifdef __SWITCH__
+  ImGui_ImplSDL2_Shutdown();
+#else
   ImGui_ImplSDL3_Shutdown();
+#endif
   ImGui::DestroyContext();
   // Cleanup SDL
+#ifdef __SWITCH__
+  // SDL3 renamed SDL_GL_DeleteContext to SDL_GL_DestroyContext.
+  SDL_GL_DeleteContext(m_gl_context);
+#else
   SDL_GL_DestroyContext(m_gl_context);
+#endif
   SDL_DestroyWindow(m_window);
   // cleanup SDL related sub-systems before we quit SDL
   if (m_display_manager) {
@@ -486,6 +633,9 @@ void render_game_frame(int game_width,
   }
   // render that chain.
   if (got_chain) {
+#ifdef __ANDROID__
+    android_touch_controls::game_frame_rendered();
+#endif
     g_gfx_data->frame_idx_of_input_data = g_gfx_data->frame_idx;
     RenderOptions options;
     options.game_res_w = game_width;
@@ -537,6 +687,11 @@ void render_game_frame(int game_width,
     if (options.msaa_samples > msaa_max) {
       options.msaa_samples = msaa_max;
     }
+    // A corrupt sample count must not take the whole game down in make_fbo. (AI-assisted)
+    if (options.msaa_samples < 1) {
+      lg::warn("render_game_frame: invalid msaa {}, using 1", options.msaa_samples);
+      options.msaa_samples = 1;
+    }
 
     if constexpr (run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
@@ -563,7 +718,13 @@ void render_game_frame(int game_width,
 void GLDisplay::process_sdl_events() {
   SDL_Event evt;
   while (SDL_PollEvent(&evt) != 0) {
+#ifdef __SWITCH__
+    // SDL3 renamed SDL_QUIT to SDL_EVENT_QUIT (see game/system/hid/sdl2_event_compat.h for the
+    // rest of the SDL2/SDL3 event-name mapping used by the hid/ code).
+    if (evt.type == SDL_QUIT) {
+#else
     if (evt.type == SDL_EVENT_QUIT) {
+#endif
       m_should_quit = true;
     }
     {
@@ -573,7 +734,11 @@ void GLDisplay::process_sdl_events() {
     if (!m_should_quit) {
       {
         auto p = scoped_prof("imgui-sdl-process");
+#ifdef __SWITCH__
+        ImGui_ImplSDL2_ProcessEvent(&evt);
+#else
         ImGui_ImplSDL3_ProcessEvent(&evt);
+#endif
       }
     }
     {
@@ -624,13 +789,23 @@ void GLDisplay::render() {
   {
     auto p = scoped_prof("imgui-new-frame");
     ImGui_ImplOpenGL3_NewFrame();
+#ifdef __SWITCH__
+    ImGui_ImplSDL2_NewFrame();
+#else
     ImGui_ImplSDL3_NewFrame();
+#endif
     ImGui::NewFrame();
   }
 
   // framebuffer size
   int fbuf_w, fbuf_h;
+#ifdef __SWITCH__
+  // SDL2 has no SDL_GetWindowSizeInPixels; SDL_GL_GetDrawableSize is the equivalent for a GL
+  // window (both report the actual backbuffer size, which is what mattered here anyway).
+  SDL_GL_GetDrawableSize(m_window, &fbuf_w, &fbuf_h);
+#else
   SDL_GetWindowSizeInPixels(m_window, &fbuf_w, &fbuf_h);
+#endif
 
   // render game!
   g_gfx_data->debug_gui.master_enable = is_imgui_visible();
@@ -692,6 +867,9 @@ void GLDisplay::render() {
   {
     auto p = scoped_prof("swap-buffers");
     SDL_GL_SwapWindow(m_window);
+#ifdef __ANDROID__
+    android_touch_controls::frame_presented();
+#endif
   }
 
   // actually wait for vsync

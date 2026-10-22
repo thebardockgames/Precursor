@@ -36,7 +36,8 @@
             (begin
               (draw-sprite2d-xy-absolute dma-buf 0 0 512 46 (new 'static 'rgba :a #x80))
               (draw-sprite2d-xy-absolute dma-buf 0 370 512 47 (new 'static 'rgba :a #x80)))
-            ;; native mode. force 16x9 letterboxing always.
+            ;; Native mode: retain vertical 16:9 framing. ARM64 reveals the extended
+            ;; horizontal view already computed by update-math-camera. (AI-assisted)
             (begin
               (cond
                 ((< (-> *pc-settings* aspect-ratio) ASPECT_16X9)
@@ -47,7 +48,10 @@
                     (draw-sprite2d-xy dma-buf 0 (- 416 lbx-h) 512 lbx-h (new 'static 'rgba :a #x80))
                       )
                   )
-                ((> (-> *pc-settings* aspect-ratio) ASPECT_16X9)
+                ((#if (eq? TARGET_ARCH 'arm64)
+                      #f
+                      (> (-> *pc-settings* aspect-ratio) ASPECT_16X9))
+                  ;; Keep the original pillarbox on PC; no stretch or zoom on ARM64.
                   ;; too wide. needs horizontal letterboxing.
                   (let ((lbx-w (the int (* 256.0 (- 1.0 (/ ASPECT_16X9 (-> *pc-settings* aspect-ratio)))))))
                     ;(format 0 "using new pillarbox! size: ~D~%" lbx-w)

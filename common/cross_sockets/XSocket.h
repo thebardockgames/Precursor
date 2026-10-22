@@ -27,6 +27,8 @@ const int TCP_SOCKET_LEVEL = SOL_TCP;
 const int TCP_SOCKET_LEVEL = IPPROTO_TCP;
 #elif __APPLE__
 const int TCP_SOCKET_LEVEL = IPPROTO_TCP;
+#elif defined(__SWITCH__)
+const int TCP_SOCKET_LEVEL = IPPROTO_TCP;
 #endif
 
 int open_socket(int af, int type, int protocol);

@@ -42,6 +42,13 @@ bool create_dir_if_needed(const fs::path& path);
 bool create_dir_if_needed_for_file(const std::string& path);
 bool create_dir_if_needed_for_file(const fs::path& path);
 std::string get_current_executable_path();
+#ifdef __SWITCH__
+// There's no /proc/self/exe equivalent on Horizon OS to implement get_current_executable_path()
+// with. libnx's crt0 does parse the loader-provided argv (including argv[0], the on-disk path
+// to this .nro) before calling main() - the game's main() must forward that here, once, before
+// anything calls get_current_executable_path() (i.e. before setup_project_path()).
+void set_switch_executable_path(const std::string& path);
+#endif
 std::optional<std::string> try_get_project_path_from_path(const std::string& path);
 bool setup_project_path(std::optional<fs::path> project_path_override, bool skip_logs = false);
 void override_user_config_dir(fs::path user_config_dir_override,

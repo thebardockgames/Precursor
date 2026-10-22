@@ -23,7 +23,10 @@ constexpr u32 DEBUG_PRINT_BUFFER_SIZE = 0x200000;
 constexpr u32 PRINT_BUFFER_SIZE = 0x40000;  // upped from 0x2000 on PS2 because we ran out of memory
 
 struct format_struct {
-  char data[0x40];
+  // Numeric format options use -1 as an unset sentinel. Plain char is unsigned
+  // on Android ARM64, so it turned default padding into 255 bytes. (AI-assisted)
+  s8 data[0x40];
+  const char* c_str() const { return reinterpret_cast<const char*>(data); }
   void reset() {
     for (auto& c : data)
       c = -1;

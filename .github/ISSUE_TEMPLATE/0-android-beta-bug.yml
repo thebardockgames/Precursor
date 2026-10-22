@@ -1,0 +1,53 @@
+name: "🐞 Error en la beta de Precursor (Android) / Precursor beta bug"
+description: Reporta un problema del launcher o del juego en Android. Report a launcher or game problem on Android.
+labels: ["android", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por probar la beta de **Precursor**, powered by OpenGOAL. Es un proyecto no oficial: **no reportes estos errores al equipo de OpenGOAL**.
+
+        **La forma más fácil:** en el launcher toca **🐞 Reportar un problema** (o acepta el aviso que aparece después de un cierre). Se genera un archivo `.zip`. Arrástralo al campo "Reporte del launcher" de abajo.
+        El `.zip` no incluye tus partidas guardadas ni la ISO.
+
+        Thanks for testing. This fork is not affiliated with OpenGOAL, so please don't report these bugs to them. In the launcher tap 🐞, then attach the `.zip` below.
+  - type: checkboxes
+    attributes:
+      label: Antes de enviar / Before sending
+      options:
+        - label: Uso mi propia copia del juego, obtenida legalmente / I use my own legally obtained copy of the game
+          required: true
+  - type: dropdown
+    attributes:
+      label: Juego / Game
+      options:
+        - Jak and Daxter (Jak 1)
+        - Jak II
+        - Jak 3
+        - Launcher (instalación, partidas, mods)
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: ¿Qué pasó? / What happened?
+      description: Qué esperabas y qué ocurrió. Capturas o video ayudan mucho.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: ¿Dónde y cómo? / Where and how?
+      description: Nivel o menú, qué estabas haciendo, y si pasa siempre o a veces.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Reporte del launcher / Launcher report (.zip)
+      description: Arrastra aquí el archivo `precursor-reporte-….zip` que genera el botón 🐞.
+    validations:
+      required: false
+  - type: input
+    attributes:
+      label: Teléfono / Phone
+      description: Marca y modelo, por ejemplo "POCO X6 Pro". Ya va dentro del .zip si lo adjuntaste.
+    validations:
+      required: false

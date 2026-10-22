@@ -129,6 +129,14 @@
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif
+#ifdef __SWITCH__
+// This backend's own embedded GL function loader (imgui_impl_opengl3_loader.h) needs
+// <dlfcn.h>, not available on Switch. This project already loads GL function pointers via glad
+// (see game/graphics/pipelines/opengl.cpp: gladLoadGL()) before initializing this backend, so
+// tell it to use that instead of trying to load its own.
+#define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+#include "glad/glad.h"
+#endif
 
 // Clang/GCC warnings with -Weverything
 #if defined(__clang__)

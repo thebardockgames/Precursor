@@ -1,5 +1,6 @@
 #version 410 core
 
+
 // merc vertex definition
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 normal_in;
@@ -61,11 +62,11 @@ void main() {
   vec3 rotated_nrm = bones[mats[0]].R * normal_in * weights_in[0];
 
   // game may send garbage bones if the weight is 0, don't let NaNs sneak in.
-  if (weights_in[1] > 0) {
+  if (weights_in[1] > 0.0) {
     vtx_pos += -bones[mats[1]].X * p * weights_in[1];
     rotated_nrm += bones[mats[1]].R * normal_in * weights_in[1];
   }
-  if (weights_in[2] > 0) {
+  if (weights_in[2] > 0.0) {
     vtx_pos += -bones[mats[2]].X * p * weights_in[2];
     rotated_nrm += bones[mats[2]].R * normal_in * weights_in[2];
   }
@@ -84,15 +85,15 @@ void main() {
 
 
   float Q = fog_constants.x / transformed[3];
-  fog = 255 - clamp(-transformed.w + hvdf_offset.w, fog_constants.y, fog_constants.z);
+  fog = 255.0 - clamp(-transformed.w + hvdf_offset.w, fog_constants.y, fog_constants.z);
 
   transformed.xyz *= Q;
   transformed.xyz += hvdf_offset.xyz;
   transformed.xy -= (2048.);
-  transformed.z /= (8388608);
-  transformed.z -= 1;
-  transformed.x /= (256);
-  transformed.y /= -(128);
+  transformed.z /= (8388608.0);
+  transformed.z -= 1.0;
+  transformed.x /= (256.0);
+  transformed.y /= -(128.0);
   transformed.xyz *= transformed.w;
   transformed.y *= SCISSOR_ADJUST * HEIGHT_SCALE;
   gl_Position = transformed;

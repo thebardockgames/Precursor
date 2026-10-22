@@ -15,6 +15,17 @@
 
 using namespace emitter;
 
+namespace {
+// ARM64's V (vector) registers numerically overlap X0..SP (see Register::m_is_arm64_vector's own
+// comment in Register.h) - a bare `V3` used where a `Register` is expected is indistinguishable
+// from `X3` without this explicit tag, which real compiler code always sets via exactly this
+// pattern (see Register.cpp's own `vreg` lambda). Every ARM64 SIMD test below needs this, not the
+// bare enumerator, or `is_128bit_simd()`/`is_xmm()` see a GPR and assert.
+Register vreg(int id) {
+  return Register(id, true);
+}
+}  // namespace
+
 TEST(CodeTester, prologue_x86) {
   CodeTester tester;
   tester.init_code_buffer(256);
@@ -107,6 +118,74 @@ TEST(CodeTester, add_gpr64_imm8_arm64) {
             "00D1D60600D1F70600D1180700D1390700D15A0700D17B0700D19C0700D1BD0700D1DE0700D1");
 }
 
+TEST(CodeTester, cmp_gpr64_gpr64_arm64) {
+  // Regression test for two real bugs found this session in cmp_gpr64_gpr64's ARM64 encoding:
+  // (1) the second operand was packed into the Rn field (bits [9:5]) instead of Rm (bits
+  // [20:16]) - a copy-paste mistake (`Rn(b.id())` instead of `Rm(b.id())`); (2) the `option`
+  // field (bits [15:13]) was hardcoded to UXTB (byte-extend) instead of UXTX (the correct option
+  // for comparing two full 64-bit registers), silently truncating the second operand to 8 bits
+  // before every comparison. Together these silently miscompiled ordinary GOAL `(if ...)`/`cond`
+  // truthiness and equality checks - no assertion failure anywhere, only a real device crash deep
+  // in ARM64 JIT'd GOAL code (`(defmethod new cpu-thread ...)`) gave it away. Uses varied,
+  // non-matching (a, b) pairs specifically so a reintroduction of "both registers land in the
+  // same field" would show up as a wrong Rm nibble here instead of accidentally matching (as it
+  // can when b happens to be 0).
+  CodeTester tester(emitter::InstructionSet::ARM64);
+  tester.init_code_buffer(256);
+  for (int i = 0; i < 31; i++) {
+    tester.emit(IGen::cmp_gpr64_gpr64(tester.generator(), i, (i * 7 + 3) % 31));
+  }
+  EXPECT_EQ(tester.dump_to_hex_string(true),
+            "1F6023EB3F602AEB5F6031EB7F6038EB9F6020EBBF6027EBDF602EEBFF6035EB1F613CEB3F6124EB5F612BEB"
+            "7F6132EB9F6139EBBF6121EBDF6128EBFF612FEB1F6236EB3F623DEB5F6225EB7F622CEB9F6233EBBF623A"
+            "EBDF6222EBFF6229EB1F6330EB3F6337EB5F633EEB7F6326EB9F632DEBBF6334EBDF633BEB");
+}
+
+TEST(CodeTester, register_offset_loads_stores_arm64) {
+  // Regression test for a real bug found this session: six ARM64 "load/store register (register
+  // offset)" encodings hardcoded their `option` field (which extend/shift to apply to the index
+  // register) to 0b000 = UXTB (extend from a byte) instead of 0b011 = UXTX (a plain 64-bit
+  // register offset, the correct option whenever the index register isn't being extended/shifted
+  // from a narrower value - every other register-offset function in this file already uses either
+  // UXTX or the equally-valid SXTX). UXTB isn't just "wrong but valid" here - for these particular
+  // (size, V, opc) combinations it produces a genuinely unallocated/illegal ARM64 instruction, not
+  // a differently-behaving valid one. Confirmed on real hardware: this crashed with SIGILL inside
+  // `matrix-identity!` (`goal_src/jak1/engine/math/matrix.gc`) - the first GOAL code in this
+  // project's history to store a 128-bit value at a zero field offset, the first call shape that
+  // actually reaches `storevf_gpr64_plus_gpr64`. `loadvf_gpr64_plus_gpr64` additionally passed
+  // `addr1` for both `Rn` and `Rm` (never referencing the real second address register at all) -
+  // caught only by comparing raw bytes against a real instruction assembled by the NDK's own
+  // `clang` (`str/ldr <reg>, [x2, x5]` etc.), the same technique that found the original bug.
+  CodeTester tester(emitter::InstructionSet::ARM64);
+  tester.init_code_buffer(256);
+  tester.emit(IGen::store16_gpr64_gpr64_plus_gpr64(tester.generator(), X2, X5, X9));
+  tester.emit(IGen::load32u_gpr64_gpr64_plus_gpr64(tester.generator(), X9, X2, X5));
+  tester.emit(IGen::load64_gpr64_gpr64_plus_gpr64(tester.generator(), X9, X2, X5));
+  tester.emit(IGen::store32_xmm32_gpr64_plus_gpr64(tester.generator(), X2, X5, vreg(V9)));
+  tester.emit(IGen::storevf_gpr64_plus_gpr64(tester.generator(), vreg(V9), X2, X5));
+  tester.emit(IGen::loadvf_gpr64_plus_gpr64(tester.generator(), vreg(V9), X2, X5));
+  EXPECT_EQ(tester.dump_to_hex_string(true),
+            "49682578496865B8496865F8A96822BC4968A53C4968E53C");
+}
+
+TEST(CodeTester, store128_gpr64_simd128_offset_arm64) {
+  // Regression test for a real bug found this session: `store128_gpr64_simd128_s8` and its
+  // `_s32` sibling (used to back up a second-or-later callee-saved Q register at a non-zero
+  // prologue stack offset - `CodeGenerator::do_goal_function_arm64`, via
+  // `store128_xmm128_reg_offset`) declared their final STR's opcode literal
+  // (`0b0011110110`, a 10-bit value - matches the *zero*-offset sibling
+  // `store128_gpr64_simd128` just above, which correctly uses `Base(..., 10)`) with
+  // `Base(..., 22)` instead - shifting it 12 bits too far and zeroing the instruction's entire
+  // top byte, producing a word with nothing resembling a real STR encoding at all. Confirmed on
+  // real hardware: SIGILL inside `update-math-camera`
+  // (`goal_src/jak1/engine/gfx/math-camera.gc`), the first GOAL function needing to back up two
+  // or more callee-saved XMM/Q registers.
+  CodeTester tester(emitter::InstructionSet::ARM64);
+  tester.init_code_buffer(256);
+  tester.emit(IGen::store128_gpr64_simd128_s8(tester.generator(), X2, vreg(V9), 0x10));
+  EXPECT_EQ(tester.dump_to_hex_string(true), "50000091104200910902803D");
+}
+
 TEST(CodeTester, simd_store_128_x86) {
   CodeTester tester;
   tester.init_code_buffer(256);
@@ -150,10 +229,10 @@ TEST(CodeTester, simd_store_128_arm64) {
   CodeTester tester(emitter::InstructionSet::ARM64);
   tester.init_code_buffer(256);
 
-  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X2, V3));
-  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X14, V3));
-  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X2, V14));
-  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X14, V13));
+  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X2, vreg(V3)));
+  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X14, vreg(V3)));
+  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X2, vreg(V14)));
+  tester.emit(IGen::store128_gpr64_simd128(tester.generator(), X14, vreg(V13)));
   EXPECT_EQ(tester.dump_to_hex_string(), "43 00 80 3d c3 01 80 3d 4e 00 80 3d cd 01 80 3d");
 }
 
@@ -197,10 +276,10 @@ TEST(CodeTester, xmm_load_128_arm64) {
   CodeTester tester(emitter::InstructionSet::ARM64);
   tester.init_code_buffer(256);
 
-  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), V3, X1));
-  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), V3, X14));
-  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), V14, X1));
-  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), V13, X14));
+  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), vreg(V3), X1));
+  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), vreg(V3), X14));
+  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), vreg(V14), X1));
+  tester.emit(IGen::load128_simd128_gpr64(tester.generator(), vreg(V13), X14));
   EXPECT_EQ(tester.dump_to_hex_string(), "23 00 c0 3d c3 01 c0 3d 2e 00 c0 3d cd 01 c0 3d");
 }
 

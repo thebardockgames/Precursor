@@ -1,219 +1,229 @@
-<p align="center">
-  <img width="500" height="100%" src="./docs/img/logo-text-colored-new.png">
-</p>
+# Precursor
+
+**Precursor · powered by [OpenGOAL](https://opengoal.dev)**
+
+La trilogía de Jak and Daxter, nativa en Android ARM64. Es un port experimental y **no oficial**
+construido sobre OpenGOAL.
+
+> [!NOTE]
+> **English summary:** Precursor, powered by OpenGOAL, is an unofficial, non-profit fork of
+> [OpenGOAL](https://github.com/open-goal/jak-project) that tries to run the Jak trilogy natively
+> on Android (arm64-v8a). "Powered by OpenGOAL" means it is built on OpenGOAL's code; it does not
+> mean the OpenGOAL team made or approved it. The OpenGOAL team does not make, endorse or support it. All three games
+> (Jak 1, Jak 2 and Jak 3) are being worked on and already boot and run on a real phone, but
+> everything is **experimental** and none of them has been verified end to end. Please don't report problems with this fork to the OpenGOAL
+> team. You need your own legally purchased copy of the game, and no game assets are included.
+
+---
+
+## Qué es este proyecto
+
+[OpenGOAL](https://opengoal.dev) es el proyecto que descompiló la trilogía original de Jak and
+Daxter de PS2 y la convirtió en una aplicación nativa de PC. El juego original está escrito casi
+entero en GOAL, un lenguaje tipo LISP creado por Naughty Dog. El equipo de OpenGOAL escribió su
+propio compilador de GOAL para x86-64, un descompilador y las herramientas para extraer y
+reempaquetar los assets del juego. Todo eso es trabajo suyo y la base de este repositorio.
+
+**Este fork intenta llevar ese trabajo a Android.** El objetivo no es emular ni interpretar, sino
+lo mismo que busca OpenGOAL en PC: que el juego corra como código nativo, en este caso en
+teléfonos ARM64. Para eso hace falta:
+
+- **Un backend ARM64 para el compilador de GOAL** (`goalc --arch arm64`). El código del juego se
+  compila directamente a instrucciones AArch64 en vez de x86-64.
+- **Puentes de llamada C++ ↔ GOAL para ARM64** (trampolines y rutinas en ensamblador del kernel).
+- **El renderer portado a OpenGL ES 3.2.** Android solo ofrece GLES, no OpenGL de escritorio.
+- **Un APK de Android** basado en SDL3 (`SDLActivity`), con audio por cubeb (AAudio/OpenSL ES).
+
+El proyecto se desarrolla con ayuda de IA (ver [Desarrollo asistido por IA](#desarrollo-asistido-por-ia)).
+
+## La app
 
 <p align="center">
-  <a href="https://opengoal.dev/docs/intro" rel="nofollow"><img src="https://img.shields.io/badge/Documentation-Here-informational" alt="Documentation Badge" style="max-width:100%;"></a>
-  <a title="Crowdin" target="_blank" href="https://crowdin.com/project/opengoal"><img src="https://badges.crowdin.net/opengoal/localized.svg"></a>
-  <a target="_blank" rel="noopener noreferrer" href="https://github.com/open-goal/jak-project/actions/workflows/build-matrix.yaml"><img src="https://github.com/open-goal/jak-project/actions/workflows/build-matrix.yaml/badge.svg" alt="Linux and Windows Build" style="max-width:100%;"></a>
-  <a href="https://www.codacy.com/gh/open-goal/jak-project/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=open-goal/jak-project&amp;utm_campaign=Badge_Grade" rel="nofollow"><img src="https://app.codacy.com/project/badge/Grade/29316d04a1644aa390c33be07289f3f5" alt="Codacy Badge" style="max-width:100%;"></a>
-  <a href="https://discord.gg/VZbXMHXzWv"><img src="https://img.shields.io/discord/756287461377703987" alt="Discord"></a>
+  <img src="docs/img/precursor/estante-horizontal.jpg" alt="El Estante de Precursor en horizontal: Jak and Daxter instalado, botones Jugar y Partidas y opciones, y la fila con los tres juegos" width="100%">
 </p>
 
-## Please read first <!-- omit from toc -->
+Precursor es un solo launcher para los tres juegos. Tú pones la ISO de tu disco y la app hace el
+resto en el teléfono: la comprueba, extrae los archivos, compila el juego para ARM64 y lo deja
+listo para jugar. No hace falta una PC.
 
-> [!IMPORTANT]
-> Our repositories on GitHub are for development of the project and tracking active issues. Most of the information you will find here pertains to setting up the project for development purposes and is not relevant to the end-user.
+<table>
+  <tr>
+    <td width="33%"><img src="docs/img/precursor/elegir-juego-vertical.jpg" alt="Inicio guiado: ¿Qué juego tienes?, con las portadas de los tres juegos"></td>
+    <td width="33%"><img src="docs/img/precursor/listo-vertical.jpg" alt="Instalación terminada: la portada de Jak and Daxter sale del orbe y el botón Jugar ahora"></td>
+    <td width="33%"><img src="docs/img/precursor/estante-vertical.jpg" alt="El Estante en vertical, con la portada grande y la fila Tus juegos"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Inicio guiado</sub></td>
+    <td align="center"><sub>Juego listo</sub></td>
+    <td align="center"><sub>Estante en vertical</sub></td>
+  </tr>
+</table>
 
-For a setup guide on how to install and play the game there is the following video that you can check out: https://youtu.be/K84UUMnkJc4
+- **Inicio guiado.** La primera vez te lleva paso a paso: elegir el juego, buscar la ISO,
+  comprobarla y prepararla. El orbe muestra el avance: cada etapa terminada enciende una de sus
+  puntas. Puedes salir mientras tanto y la app te avisa al terminar.
+- **El Estante.** Los juegos instalados, tu última partida y los botones para jugar, administrar
+  partidas y mods, o agregar otro juego. Funciona en horizontal y en vertical.
+- **Mando o pantalla táctil.** Todo el launcher se maneja con un mando (Xbox, PlayStation o
+  Nintendo, con sus propios botones en pantalla). En el juego hay controles táctiles que se
+  ocultan solos al conectar un mando.
+- **Menú dentro del juego.** Con Atrás, el botón MENÚ o Select + Start vuelves a Precursor sin
+  cerrar la app.
+- **Reportes de fallos.** Si el juego se cierra solo, la app ofrece crear un reporte con los
+  registros técnicos (nunca tus partidas ni la ISO) para compartirlo por Discord o correo.
 
-For questions or additional information pertaining to the project, we have a Discord for discussion here: https://discord.gg/VZbXMHXzWv
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/precursor/bienvenida-horizontal.jpg" alt="Pantalla de bienvenida en horizontal con el orbe de Precursor"></td>
+    <td width="50%"><img src="docs/img/precursor/listo-horizontal.jpg" alt="Jak and Daxter listo, en horizontal"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/img/precursor/elegir-juego-horizontal.jpg" alt="Elegir juego en horizontal"></td>
+    <td width="50%"><img src="docs/img/precursor/opciones-horizontal.jpg" alt="Opciones del juego: partidas guardadas, mods, controles y borrar"></td>
+  </tr>
+</table>
 
-Additionally, you can find further documentation and answers to **frequently asked questions** on the project's main website: https://opengoal.dev
+<sub>Capturas del launcher (las del juego en sí vendrán cuando esté más avanzado). Las portadas
+y los nombres de los juegos pertenecen a sus dueños y solo identifican cada juego; Precursor no
+incluye ningún archivo de los juegos.</sub>
+
+## Estado actual
+
+**El port abarca los tres juegos: Jak 1, Jak 2 y Jak 3.** Se trabaja en los tres, y los tres ya
+abren y corren en un teléfono Android real. Todo es **experimental**: ninguno está terminado ni
+se ha comprobado de principio a fin.
+
+| Juego | Hasta dónde llega hoy |
+| --- | --- |
+| Jak 1 | Título, intro, menú, partida nueva y gameplay inicial, a ~60 FPS, con controles táctiles y audio. Es el más avanzado. |
+| Jak 2 | Intro, título, la ciudad y la prisión. Las colisiones ya funcionan. Quedan crashes puntuales en revisión. |
+| Jak 3 | Menú, partida nueva y la primera cinemática completa. Después se queda en pantalla blanca (bug en investigación). |
+
+Además:
+
+- **La app Precursor** (paquete `io.github.thebardockgames.precursor`) valida tu ISO, extrae los
+  assets y compila el juego para ARM64 directamente en el teléfono. Después lanza cada juego por
+  separado, con guardados independientes.
+- El backend ARM64 del compilador compila el código completo de los tres juegos. La mayoría de
+  sus arreglos (registros, vectores, pila, llamadas) sirven para los tres a la vez.
+- El renderer funciona sobre OpenGL ES 3.2, con controles táctiles, pantalla completa y audio
+  que se pausa al minimizar.
+- Las pruebas de regresión nativas ARM64 (`test/arm64_runtime`) pasan en el dispositivo.
+
+## Sin fines de lucro y con respeto al trabajo original
+
+- Es un proyecto **sin ánimo de lucro**. No vende nada, no acepta donaciones a cambio del juego y
+  no distribuye nada que pertenezca a Sony Interactive Entertainment o Naughty Dog.
+- **"Powered by OpenGOAL" significa que está construido con el código de OpenGOAL, no que el
+  equipo de OpenGOAL lo haya hecho o aprobado.** Precursor no tiene ninguna relación oficial con
+  ellos. Todo el
+  mérito de la descompilación, el compilador, el runtime y las herramientas es de
+  [los contribuidores de OpenGOAL](https://github.com/open-goal/jak-project/graphs/contributors).
+  Este fork solo añade el trabajo específico de Android encima.
+- Se mantiene la licencia original del proyecto ([ISC](./LICENSE), © OpenGOAL Team). El código
+  de terceros en `third-party/` conserva sus propias licencias.
+- *Jak and Daxter* y sus marcas pertenecen a Sony Interactive Entertainment y Naughty Dog.
+- **No reportes problemas de este fork en el repositorio, el Discord ni los canales de
+  OpenGOAL.** Cualquier fallo aquí probablemente lo causen los cambios de este fork, no
+  OpenGOAL. Si quieres jugar en PC, usa [la versión oficial de OpenGOAL](https://opengoal.dev).
+- Este fork se desarrolla con ayuda de IA; los commits lo indican con `(AI-assisted)`. Más
+  detalles en [Desarrollo asistido por IA](#desarrollo-asistido-por-ia).
 
 > [!WARNING]
-> **Do not use this decompilation project without the use of your own legally purchased copy of the game.** OpenGOAL does not include any assets from the original games, so you must provide your own legitimately obtained PS2 copy of the game. OpenGOAL supports every retail PAL, NTSC, and NTSC-J build, including Greatest Hits copies. Please note that does NOT include any of the later releases (PS3/PS4/PS5).
+> **Necesitas tu propia copia del juego, comprada legalmente.** Este repositorio no incluye
+> assets de los juegos originales. Tienes que extraerlos tú de un disco de PS2 legítimo (PAL,
+> NTSC o NTSC-J). Las versiones de PS3/PS4/PS5 no sirven.
 
-- [Project Description](#project-description)
-  - [Current Status](#current-status)
-  - [Methodology](#methodology)
-- [Setting up a Development Environment](#setting-up-a-development-environment)
-  - [OS Setup](#os-setup)
-  - [Editor Setup](#editor-setup)
-  - [Building and Running the Game](#building-and-running-the-game)
-    - [Extract Assets](#extract-assets)
-    - [Build the Game (Running the Compiler)](#build-the-game-running-the-compiler)
-    - [Run the Game](#run-the-game)
-      - [Connecting the REPL to the Game](#connecting-the-repl-to-the-game)
-      - [Running the Game Without Auto-Booting](#running-the-game-without-auto-booting)
-- [Technical Project Overview](#technical-project-overview)
+## Compilar
 
-## Project Description
+### Herramientas de PC (compilador, descompilador, tests)
 
-The project's goal is to port the original trilogy (Jak 1 -> Jak 3) to PC. Over 98% of the games were written in GOAL, a custom LISP language developed by Naughty Dog. Our strategy is:
-- decompile the original game code into human-readable GOAL code
-- develop our own compiler for GOAL and recompile the game code for x86-64
-- create a tool to extract game assets into formats that can be easily viewed or modified
-- create tools to repack game assets into a format that our port uses.
-
-Our objectives are:
-- make the port a "native application" on x86-64, with high performance. It shouldn't be emulated, interpreted, or transpiled.
-- Our GOAL compiler's performance should be around the same as unoptimized C.
-- try to match things from the original game and development as possible. For example, the original GOAL compiler supported live modification of code while the game is running, so we do the same, even though it's not required for just porting the game.
-- support modifications. It should be possible to make edits to the code without everything else breaking.
-
-At the moment we support **x86_64** on Windows, Linux and macOS (via Rosetta translation).  There are no plans to ever make a mobile release.
-
-### Current Status
-
-- Jak 1 has been considered in a polished, complete state for years at this point.
-- Jak 2 is considered in beta due to a few issues we are aware of that need fixing, however to the casual user, the game is essentially complete.
-- Jak 3 has a good amount of work left to do.
-
-![](./docs/img/promosmall1.png)
-![](./docs/img/promosmall2.png)
-
-YouTube playlist showcasing some of the early progress for Jak 1:
-https://www.youtube.com/playlist?list=PLWx9T30aAT50cLnCTY1SAbt2TtWQzKfXX
-
-### Methodology
-
-To assist with decompiling, we've built a decompiler that can process GOAL code and unpack game assets. We manually specify function types and locations where we believe the original code had type casts (or where they feel appropriate) until the decompilation succeeds, then we clean up the output of the decompiled code by adding comments and adjusting formatting, then save it in `goal_src/`.
-
-Our decompiler is designed specifically for processing the output of the original GOAL compiler. As a result, when given correct casts, it often produces code that can be directly fed into a compiler and works perfectly. This is continually tested as part of our unit tests.
-
-## Setting up a Development Environment
-
-The remainder of this README is aimed at people interested in building the project from source, typically with the intention of contributing as a developer.
-
-If this does not sound like you and you just want to play the game, refer to the above section [Quick Start](#quick-start)
-
-### OS Setup
-
-- [Windows](/docs/setup/system/windows.md)
-- [Linux](/docs/setup/system/linux.md)
-- [MacOS](/docs/setup/system/macos.md)
-- [Docker](/docs/setup/system/docker.md)
-
-### Editor Setup
-
-You can of course use whatever editor you want, but here is some documentation that should help you get started on some of the editor's we have used and have written about:
-
-- [Visual Studio (Windows)](/docs/setup/dev/vs.md)
-- [Visual Studio Code](/docs/setup/dev/vscode.md)
-- [Zed](/docs/setup/dev/zed.md)
-
-### Building and Running the Game
-
-Getting a running game involves 4 main steps:
-
-1. Build C++ tools (follow Getting Started steps above for your platform)
-2. Extract assets from the game
-3. Build the game
-4. Run the game
-
-#### Extract Assets
-
-First, we have to setup our environment so we know which game and version we are operating with. For the black label version of Jak 1 we would run the following:
+Se compilan igual que en OpenGOAL. Para configurar el entorno, sigue la guía de tu sistema
+([Windows](./docs/setup/system/windows.md), [Linux](./docs/setup/system/linux.md),
+[macOS](./docs/setup/system/macos.md)). El proyecto usa [Task](https://taskfile.dev):
 
 ```sh
+task gen-cmake-release
+task build-release
 task set-game-jak1
-task set-decomp-ntscv1 # or for example for PAL, `task set-decomp-pal`
+task set-decomp-ntscv1   # o set-decomp-pal, etc.
+task extract             # con la ISO extraída en iso_data/jak1
 ```
 
-> Run `task --list` to see the other available options
+### Código del juego para ARM64
 
-Next, ensure you extract your ISO file contents into the relevant `iso_data/<game-name>` folder.  In the case of Jak 1 this is `iso_data/jak1`.
-
-Once this is done, open a terminal in the `jak-project` folder and run the following:
+El `goalc` de PC compila el código GOAL a ARM64 con `--arch arm64`:
 
 ```sh
-task extract
+./out/build/Release/bin/goalc -g jak1 -a arm64 --proj-path <carpeta-data> -c '(make-group "all-code" :force #t)'
+./out/build/Release/bin/goalc -g jak1 -a arm64 --proj-path <carpeta-data> -c '(mi)'
 ```
 
-#### Build the Game (Running the Compiler)
+### APK de Android
 
-The next step is to build the game itself.  To do so, in the same terminal run the following:
+Requiere el Android SDK y el NDK `29.0.14206865`. El APK es solo para arm64-v8a, con mínimo
+Android 9 (API 28).
 
 ```sh
-task repl
+cd scripts/android-port/apk
+./gradlew assembleDebug -PopenGoalGame=launcher   # o jak1, jak2, jak3
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-You will be greeted with a prompt like so:
+- **Precursor** (`launcher`, opción por defecto): eliges tu ISO desde el teléfono y el launcher
+  hace el resto (validar, extraer y compilar).
+- **APK por juego** (`jak1`, `jak2`, `jak3`): para desarrollo. Los datos compilados en el PC se
+  copian al almacenamiento interno de la app.
+
+Todas las variantes generan el mismo archivo `app-debug.apk`, así que confirma cuál
+compilaste antes de instalarlo.
+
+### Tests
 
 ```sh
- _____             _____ _____ _____ __
-|     |___ ___ ___|   __|     |  _  |  |
-|  |  | . | -_|   |  |  |  |  |     |  |__
-|_____|  _|___|_|_|_____|_____|__|__|_____|
-      |_|
-Welcome to OpenGOAL 0.8!
-Run (repl-help) for help with common commands and REPL usage.
-Run (lt) to connect to the local target.
-
-g >
+./test.sh                                   # suite de goalc-test en PC
+goalc-test --gtest_filter="*ARM64*"         # solo los tests del emisor ARM64
 ```
 
-Run the following to build the game:
+Las pruebas de ejecución ARM64 en un dispositivo real están en
+[`test/arm64_runtime`](./test/arm64_runtime/README.md).
 
-```sh
-g > (mi)
-```
+## Estructura del repositorio
 
-> IMPORTANT NOTE! If you're not using the non-default version of the game, you may hit issues trying to run `(mi)` in this step. An example error might include something like:
->
-> `Input file iso_data/jak1/MUS/TWEAKVAL.MUS does not exist.`
->
-> This is because the decompiler inputs/outputs using the `gameName` JSON field in the decompiler config. For example if you are using Jak 1 PAL, it will assume `iso_data/jak1_pal` and `decompiler_out/jak1_pal`.  Therefore, you can inform the REPL/compiler of this via the `gameVersionFolder` config field described [here](./goal_src/user/README.md)
+| Carpeta | Contenido |
+| --- | --- |
+| `goalc/` | Compilador de GOAL. El emisor ARM64 está en `goalc/emitter/IGenARM64.cpp` |
+| `game/` | Runtime en C++: kernel, renderer (GLES 3.2 en Android) y sonido |
+| `overlord/` | Emulación del IOP (carga de datos y audio) |
+| `goal_src/` | Código fuente GOAL descompilado de los juegos |
+| `decompiler/` | Descompilador y extractor de assets |
+| `scripts/android-port/` | APK de Android, prueba de concepto con CMake y scripts de verificación |
+| `test/` | Tests unitarios, del emisor y de ejecución ARM64 |
 
-#### Run the Game
+La documentación técnica general de OpenGOAL sigue siendo válida:
+[`docs/project-overview.md`](./docs/project-overview.md) y <https://opengoal.dev/docs/intro>.
 
-Finally the game can be launched.  Open a second terminal from the `jak-project` directory and run the following:
+## Desarrollo asistido por IA
 
-```sh
-task boot-game
-```
+Precursor se desarrolla con ayuda de inteligencia artificial: **Claude** (de Anthropic), a través
+de Claude Code, escribe y revisa buena parte del código, los diagnósticos y la documentación del
+port, siempre dirigido y probado en teléfonos reales por el autor. Los commits hechos así llevan
+`(AI-assisted)` y la línea `Co-Authored-By: Claude`.
 
-The game should boot automatically if everything was done correctly.
+Si contribuyes, sigue la misma regla: indica `(AI-assisted)` cuando uses IA.
 
-##### Connecting the REPL to the Game
+## Contribuidores
 
-Connecting the REPL to the game allows you to inspect and modify code or data while the game is running.
+| | Rol |
+| --- | --- |
+| **[thebardockgames](https://github.com/thebardockgames)** | Autor y responsable de Precursor: dirección, pruebas en dispositivos y publicación |
+| **Claude** (Anthropic, vía Claude Code) | Asistente de IA: código del port ARM64/Android, launcher, diagnósticos y documentación |
+| **[Contribuidores de OpenGOAL](https://github.com/open-goal/jak-project/graphs/contributors)** | Todo el proyecto en el que se basa Precursor |
 
-To do so, in the REPL after a successful `(mi)`, run the following:
+## Créditos
 
-```sh
-g > (lt)
-```
-
-If successful, your prompt should change to:
-
-```sh
-gc>
-```
-
-For example, running the following will print out some basic information about Jak:
-
-```sh
-gc> *target*
-```
-
-##### Running the Game Without Auto-Booting
-
-You can also start up the game without booting.  To do so run the following in one terminal
-
-```sh
-task run-game
-```
-
-And then in your REPL run the following (after a successful `(mi)`):
-
-```sh
-g > (lt)
-[Listener] Socket connected established! (took 0 tries). Waiting for version...
-Got version 0.8 OK!
-[Debugger] Context: valid = true, s7 = 0x147d24, base = 0x2123000000, tid = 2438049
-
-gc> (lg)
-10836466        #xa559f2              0.0000        ("game" "kernel")
-
-gc> (test-play)
-(play :use-vis #t :init-game #f) has been called!
-0        #x0              0.0000        0
-
-gc>
-```
-
-## Technical Project Overview
-
-Some more detail about the various components of the project can be found [here](/docs/project-overview.md)
+- **[OpenGOAL](https://github.com/open-goal/jak-project)** y todos sus contribuidores, por el
+  proyecto en el que se basa todo esto.
+- **[SDL](https://github.com/libsdl-org/SDL)** por la capa de ventana y entrada en Android, y
+  **[cubeb](https://github.com/mozilla/cubeb)** por el audio.
+- **Naughty Dog**, por crear Jak and Daxter y GOAL.

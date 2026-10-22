@@ -660,8 +660,10 @@ void OceanTexture::flush(SharedRenderState* render_state, ScopedProfilerNode& pr
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_BLEND);
   // glDrawArrays(GL_TRIANGLE_STRIP, 0, NUM_VERTS);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
   glDrawElements(GL_TRIANGLE_STRIP, m_pc.index_buffer.size(), GL_UNSIGNED_INT, (void*)0);
   prof.add_draw_call();
   prof.add_tri(NUM_STRIPS * NUM_STRIPS * 2);

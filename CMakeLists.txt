@@ -241,6 +241,21 @@ add_definitions(-DHAVE_USLEEP=1)
 add_definitions(-DSQLITE_THREADSAFE=1)
 add_definitions(-DSQLITE_ENABLE_JSON1)
 add_definitions(-DSQLITE_ENABLE_RTREE)
+if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # sqlite3.c only pulls in <sys/mman.h> (not available in devkitA64's newlib) when WAL mode
+    # and/or mmap I/O are compiled in - this project doesn't use either (no journal_mode/WAL
+    # pragmas anywhere), so disabling both avoids the dependency rather than patching the
+    # (heavily amalgamated, not meant to be hand-edited) sqlite3.c.
+    add_definitions(-DSQLITE_OMIT_WAL=1)
+    add_definitions(-DSQLITE_MAX_MMAP_SIZE=0)
+    # dlopen()/dlfcn.h (loadable extensions) doesn't exist on Switch either, and this project
+    # doesn't load SQLite extensions dynamically.
+    add_definitions(-DSQLITE_OMIT_LOAD_EXTENSION=1)
+    # HAVE_FCHOWN/geteuid() are disabled directly in sqlite3.c (guarded on __SWITCH__) rather
+    # than via a command-line -D: the amalgamation only checks `defined(HAVE_FCHOWN)`, so
+    # defining it as 0 here would still count as "defined" and re-enable the geteuid() call
+    # that devkitA64's newlib doesn't provide.
+endif()
 build_third_party_lib(sqlite3 sqlite3)
 
 # build tree-sitter parser

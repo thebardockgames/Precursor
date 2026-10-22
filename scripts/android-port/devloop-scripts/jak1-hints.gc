@@ -1,0 +1,14 @@
+;; Geyser Rock: play Keira's training hints from the REPL and log the dialogue volume the overlord
+;; computes for them (a phone report had "asstvb42", the power cell explanation, stream in full
+;; but silently). The emulator has no audio output, so check the "[OVERLORD] VAG volume" lines,
+;; not the sound. (AI-assisted)
+;; Run: scripts/android-port/devloop.sh -n -S scripts/android-port/devloop-scripts/jak1-hints.gc -t 300
+(start 'play (get-continue-by-name *game-info* "training-start"))
+(script-wait 40)
+(format #t "[script-print] dialog-volume=~f hint=~f~%" (-> *setting-control* current dialog-volume)
+        (-> *setting-control* current dialog-volume-hint))
+(level-hint-spawn (text-id training-money) "asstvb41" (the-as entity #f) *entity-pool* (game-task none))
+(script-wait 15)
+(level-hint-spawn (text-id training-fuel-cell) "asstvb42" (the-as entity #f) *entity-pool* (game-task none))
+(script-wait 15)
+(format #t "[script-print] dialog-volume=~f~%" (-> *setting-control* current dialog-volume))

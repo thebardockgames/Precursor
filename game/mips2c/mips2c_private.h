@@ -20,7 +20,14 @@
 extern u8* g_ee_main_mem;
 
 extern "C" {
-#ifdef __linux__
+// Checked before __linux__ - devkitA64's bare-metal newlib target (Switch) doesn't define
+// __linux__ at all, so this branch also covers Switch, not just Android/real ARM64 Linux.
+#if defined(__aarch64__) && defined(__APPLE__)
+u64 _call_goal8_asm_arm64(void* func, u64* arg_array, u64 zero, u64 pp, u64 st, void* off) asm(
+    "_call_goal8_asm_arm64");
+#elif defined(__aarch64__)
+u64 _call_goal8_asm_arm64(void* func, u64* arg_array, u64 zero, u64 pp, u64 st, void* off);
+#elif defined __linux__
 u64 _call_goal8_asm_systemv(void* func, u64* arg_array, u64 zero, u64 pp, u64 st, void* off);
 #elif defined __APPLE__ && defined __x86_64__
 u64 _call_goal8_asm_systemv(void* func, u64* arg_array, u64 zero, u64 pp, u64 st, void* off) asm(
@@ -353,7 +360,10 @@ struct ExecutionContext {
     u64 args[8] = {gprs[a0].du64[0], gprs[a1].du64[0], gprs[a2].du64[0], gprs[a3].du64[0],
                    gprs[t0].du64[0], gprs[t1].du64[0], gprs[t2].du64[0], gprs[t3].du64[0]};
     ASSERT(addr);
-#ifdef __linux__
+#ifdef __aarch64__
+    gprs[v0].du64[0] = _call_goal8_asm_arm64(g_ee_main_mem + addr, args, 0, gprs[s6].du64[0],
+                                             gprs[s7].du64[0], g_ee_main_mem);
+#elif defined __linux__
     gprs[v0].du64[0] = _call_goal8_asm_systemv(g_ee_main_mem + addr, args, 0, gprs[s6].du64[0],
                                                gprs[s7].du64[0], g_ee_main_mem);
 #elif defined __APPLE__ && defined __x86_64__

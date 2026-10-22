@@ -1,5 +1,6 @@
 #version 410 core
 
+
 out vec4 color;
 
 in vec4 fragment_color;
@@ -20,12 +21,12 @@ void main() {
     vec4 T0 = texture(tex_T0, tex_coord.xy);
     color = fragment_color * T0;
   } else {
-    color = fragment_color/2;
+    color = fragment_color/2.0;
   }
 
   if (color.a < alpha_min || color.a > alpha_max) {
     discard;
   }
 
-  color.rgb = mix(color.rgb, fog_color.rgb, clamp(fogginess * fog_color.a, 0, 1));
+  color.rgb = mix(color.rgb, fog_color.rgb, clamp(fogginess * fog_color.a, 0.0, 1.0));
 }

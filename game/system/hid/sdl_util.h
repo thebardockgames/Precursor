@@ -5,7 +5,13 @@
 
 #include "input_bindings.h"
 
+#ifdef __SWITCH__
+#include <SDL.h>
+
+#include "game/system/hid/sdl2_compat.h"
+#else
 #include "third-party/SDL/include/SDL3/SDL.h"
+#endif
 
 namespace sdl_util {
 void log_error(const std::string& msg = "");

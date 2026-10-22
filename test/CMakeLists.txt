@@ -43,6 +43,12 @@ target_link_libraries(goalc-test common runtime compiler gtest decomp Zydis libz
 add_executable(test_image_resize ${CMAKE_CURRENT_LIST_DIR}/common/test_image_resize.cpp)
 target_link_libraries(test_image_resize common)
 
+# Standalone (not part of goalc-test/gtest) so that an ASSERT-triggered abort() in one function
+# under audit doesn't take the whole gtest suite down with it - see the development notes
+# ("automated ARM64 encoding audit").
+add_executable(arm64-encoding-audit ${CMAKE_CURRENT_LIST_DIR}/goalc/test_arm64_encoding_audit.cpp)
+target_link_libraries(arm64-encoding-audit common compiler)
+
 if(WIN32)
   target_link_libraries(goalc-test mman)
 endif()

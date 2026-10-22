@@ -35,6 +35,9 @@
 #include <cstring>
 #include <unistd.h>
 #endif
+#ifdef __SWITCH__
+#include "common/util/switch_compat.h"
+#endif
 #include "common/log/log.h"
 #include "common/util/Assert.h"
 
@@ -136,6 +139,14 @@ fs::path get_user_features_dir(GameVersion game_version) {
 
 fs::path g_iso_data_directory = "";
 
+#ifdef __SWITCH__
+std::string g_switch_executable_path;
+
+void set_switch_executable_path(const std::string& path) {
+  g_switch_executable_path = path;
+}
+#endif
+
 /*!
  * Get the path to the current executable.
  */
@@ -165,6 +176,17 @@ std::string get_current_executable_path() {
     return std::string(argv[0]);
   }
   return std::string(buffer);
+#elif defined(__SWITCH__)
+  if (g_switch_executable_path.empty()) {
+    lg::warn(
+        "get_current_executable_path() called before set_switch_executable_path() - falling "
+        "back to a guessed .nro path");
+    return "sdmc:/switch/gk.nro";
+  }
+  return g_switch_executable_path;
+#else
+  ASSERT_MSG(false, "get_current_executable_path not implemented for this platform");
+  return "";
 #endif
 }
 
@@ -174,8 +196,15 @@ std::optional<std::string> try_get_project_path_from_path(const std::string& pat
   if (pos == std::string::npos) {
     return {};
   }
-  return std::string(path).substr(
-      0, pos + 11);  // + 12 to include "/jak-project" in the returned filepath
+  // Extend past the "jak-project" prefix to the next path separator, rather than assuming the
+  // directory is named exactly "jak-project" - a renamed fork directory (e.g.
+  // "jak-project-android") has extra characters here that a fixed-length substr would truncate,
+  // pointing this at a directory that doesn't exist.
+  std::string::size_type end = path.find_first_of("/\\", pos);
+  if (end == std::string::npos) {
+    end = path.size();
+  }
+  return std::string(path).substr(0, end);
 }
 
 /*!

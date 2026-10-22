@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "name": "jak1-orbless-min",
+  "game": "jak1",
+  "description": "Minimal Orbless behavior ported onto the current Jak 1 GOAL tree. Keeps open-orb pickups hidden and marks collected open orbs complete instead of dead. (AI-assisted)",
+  "operations": [
+    {
+      "op": "insert_before",
+      "path": "goal_src/jak1/engine/common-obs/collectables.gc",
+      "marker": "        (quaternion-rotate-y! (-> self root quat) (-> self root quat) (* 40049.777 (seconds-per-frame)))",
+      "text": "        (if (task-closed? (game-task finalboss-movies) (task-status need-introduction))\n          (logclear! (-> self draw status) (draw-status hidden))\n          (logior! (-> self draw status) (draw-status hidden)))\n        (when (and (= (-> (ppointer->process (-> self parent)) type symbol) 'process-tree)\n                   (logtest? (-> self entity extra perm status) (entity-perm-status complete)))\n          (logclear! (-> self flags) (collectable-flags can-collect)))\n"
+    },
+    {
+      "op": "replace_all",
+      "path": "goal_src/jak1/engine/common-obs/collectables.gc",
+      "old": "        (with-pc\n          (if (-> *pc-settings* money-starburst?) (spawn (-> self part) (-> self root root-prim world-sphere))))",
+      "new": "        ;; Orbless: no money starburst while money is hidden"
+    },
+    {
+      "op": "replace",
+      "path": "goal_src/jak1/engine/common-obs/collectables.gc",
+      "old": "(defstate notice-blue (money)\n  :virtual #t\n  :code\n    (behavior ((arg0 handle))\n      (loop\n        (quaternion-rotate-y! (-> self root quat) (-> self root quat) (* 91022.22 (seconds-per-frame)))\n        (set! (-> self root trans quad) (-> self base quad))\n        (add-blue-motion #t #t #t #f)",
+      "new": "(defstate notice-blue (money)\n  :virtual #t\n  :code\n    (behavior ((arg0 handle))\n      (loop\n        (quaternion-rotate-y! (-> self root quat) (-> self root quat) (* 91022.22 (seconds-per-frame)))\n        (set! (-> self root trans quad) (-> self base quad))\n        (add-blue-motion #t #f #t #f)",
+      "count": 1
+    },
+    {
+      "op": "replace",
+      "path": "goal_src/jak1/engine/common-obs/collectables.gc",
+      "old": "      (process-entity-status! self (entity-perm-status dead) #t)\n      (convert-to-hud-object self (the-as hud (ppointer->process (-> *hud-parts* money))))))",
+      "new": "      (cond\n        ((= (-> (ppointer->process (-> self parent)) type symbol) 'process-tree)\n          (process-entity-status! self (entity-perm-status complete) #t)\n          (when (task-closed? (game-task finalboss-movies) (task-status need-introduction))\n            (convert-to-hud-object self (the-as hud (ppointer->process (-> *hud-parts* money)))))\n          (go-virtual wait))\n        (else\n          (process-entity-status! self (entity-perm-status dead) #t)\n          (when (task-closed? (game-task finalboss-movies) (task-status need-introduction))\n            (convert-to-hud-object self (the-as hud (ppointer->process (-> *hud-parts* money)))))))))",
+      "count": 1
+    }
+  ]
+}

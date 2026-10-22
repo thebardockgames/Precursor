@@ -256,9 +256,21 @@
   ()
   )
 
+;; wstd-door has no explicit stack-size-set! call, so it runs on whatever default main-thread
+;; stack com-airlock/process-drawable normally gets - 256 bytes, confirmed via real ARM64/Android
+;; hardware log ("ERROR: suspend called without enough stack ... :stack 0/256", "Stack: 384/256").
+;; ARM64-compiled code needing more stack than x86-64 for the same logic is the same root cause as
+;; Jak 2's crate fix (goal_src/jak2/engine/common_objs/crates.gc) - give ARM64 real headroom here
+;; too instead of just the bare minimum, keep x86 at its original implicit 256. (AI-assisted)
+(#cond
+  ((eq? TARGET_ARCH 'arm64)
+   (defconstant WSTD_DOOR_STACK_SIZE 512))
+  (#t
+   (defconstant WSTD_DOOR_STACK_SIZE 256)))
 
 (defmethod init-from-entity! ((this wstd-door) (arg0 entity-actor))
   "Set up a newly created process from the entity that created it."
+  (stack-size-set! (-> this main-thread) WSTD_DOOR_STACK_SIZE)
   (let ((s5-0 (new 'process 'collide-shape this (collide-list-enum usually-hit-by-player))))
     (set! (-> s5-0 penetrated-by) (penetrate))
     (let ((s4-0 (new 'process 'collide-shape-prim-group s5-0 (the-as uint 1) 0)))

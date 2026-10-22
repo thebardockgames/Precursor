@@ -10,7 +10,11 @@
 #include "game/settings/settings.h"
 #include "game/system/hid/input_manager.h"
 
+#ifdef __SWITCH__
+#include <SDL.h>
+#else
 #include "third-party/SDL/include/SDL3/SDL.h"
+#endif
 
 /*
 TODO:
@@ -23,7 +27,12 @@ enum class Orientation { Landscape, LandscapeFlipped, Portrait, PortraitFlipped,
 
 /// https://wiki.libsdl.org/SDL3/SDL_DisplayMode
 struct DisplayMode {
+#ifdef __SWITCH__
+  // SDL2 identifies displays with a plain int index, not SDL3's opaque SDL_DisplayID.
+  int sdl_display_id;
+#else
   SDL_DisplayID sdl_display_id;
+#endif
   std::string display_name;
   /// https://wiki.libsdl.org/SDL3/SDL_PixelFormat
   uint32_t sdl_pixel_format;

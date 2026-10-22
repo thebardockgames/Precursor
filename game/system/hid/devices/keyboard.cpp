@@ -117,7 +117,16 @@ void KeyboardDevice::process_event(const SDL_Event& event,
                                    std::optional<InputBindAssignmentMeta>& bind_assignment) {
   if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
     const auto key_event = event.key;
-    if (m_ignore_key_on_keyup && m_ignore_key_on_keyup.value() == (u32)key_event.key &&
+#ifdef __SWITCH__
+    // SDL2's SDL_KeyboardEvent nests the keycode/modifiers in a `keysym` sub-struct
+    // (key_event.keysym.sym/.mod) instead of SDL3's flattened key_event.key/.mod.
+    const auto key_event_key = key_event.keysym.sym;
+    const auto key_event_mod = key_event.keysym.mod;
+#else
+    const auto key_event_key = key_event.key;
+    const auto key_event_mod = key_event.mod;
+#endif
+    if (m_ignore_key_on_keyup && m_ignore_key_on_keyup.value() == (u32)key_event_key &&
         event.type == SDL_EVENT_KEY_UP) {
       m_ignore_key_on_keyup = std::nullopt;
       return;
@@ -131,14 +140,14 @@ void KeyboardDevice::process_event(const SDL_Event& event,
         return;
       }
       // A normal key down event (a new key was pressed) and it's not a modifier
-      if (event.type == SDL_EVENT_KEY_DOWN && !sdl_util::is_modifier_key(key_event.key)) {
+      if (event.type == SDL_EVENT_KEY_DOWN && !sdl_util::is_modifier_key(key_event_key)) {
         if (bind_assignment->for_analog) {
-          m_ignore_key_on_keyup = key_event.key;
-          binds.assign_analog_bind(key_event.key, bind_assignment.value(),
-                                   InputModifiers(key_event.mod));
+          m_ignore_key_on_keyup = key_event_key;
+          binds.assign_analog_bind(key_event_key, bind_assignment.value(),
+                                   InputModifiers(key_event_mod));
         } else {
-          binds.assign_button_bind(key_event.key, bind_assignment.value(), false,
-                                   InputModifiers(key_event.mod));
+          binds.assign_button_bind(key_event_key, bind_assignment.value(), false,
+                                   InputModifiers(key_event_mod));
         }
       } else if (event.type == SDL_EVENT_KEY_UP) {
         // modifiers are instead inspected on a KEYUP, however if it's one of the keys
@@ -146,7 +155,7 @@ void KeyboardDevice::process_event(const SDL_Event& event,
         // it
         if (!bind_assignment->seen_keyboard_confirm_up) {
           for (const auto& confirm_bind : bind_assignment->keyboard_confirmation_binds) {
-            if (confirm_bind.sdl_idx == key_event.key) {
+            if (confirm_bind.sdl_idx == key_event_key) {
               bind_assignment->seen_keyboard_confirm_up = true;
               return;
             }
@@ -154,11 +163,11 @@ void KeyboardDevice::process_event(const SDL_Event& event,
         }
         // otherwise, set the bind
         if (bind_assignment->for_analog) {
-          binds.assign_analog_bind(key_event.key, bind_assignment.value(),
-                                   InputModifiers(key_event.mod));
+          binds.assign_analog_bind(key_event_key, bind_assignment.value(),
+                                   InputModifiers(key_event_mod));
         } else {
-          binds.assign_button_bind(key_event.key, bind_assignment.value(), false,
-                                   InputModifiers(key_event.mod));
+          binds.assign_button_bind(key_event_key, bind_assignment.value(), false,
+                                   InputModifiers(key_event_mod));
         }
       }
       return;
@@ -166,9 +175,9 @@ void KeyboardDevice::process_event(const SDL_Event& event,
 
     // Check for commands
     if (event.type == SDL_EVENT_KEY_DOWN &&
-        commands.keyboard_binds.find(key_event.key) != commands.keyboard_binds.end()) {
-      for (const auto& command : commands.keyboard_binds.at(key_event.key)) {
-        if (command.modifiers.has_necessary_modifiers(key_event.mod)) {
+        commands.keyboard_binds.find(key_event_key) != commands.keyboard_binds.end()) {
+      for (const auto& command : commands.keyboard_binds.at(key_event_key)) {
+        if (command.modifiers.has_necessary_modifiers(key_event_mod)) {
           if (command.event_command) {
             command.event_command(event);
           } else if (command.command) {

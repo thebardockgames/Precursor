@@ -2,7 +2,9 @@
 
 #include "common/log/log.h"
 
+#if !defined(__SWITCH__) && !defined(__ANDROID__)
 #include "curl/curl.h"
+#endif
 
 bool BackgroundWorker::process_queues() {
   std::lock_guard<std::mutex> job_lock(job_queue_lock);
@@ -45,6 +47,17 @@ void BackgroundWorker::enqueue_webrequest(WebRequestJobPayload payload) {
   inbox_queue.push({JobType::WEB_REQUEST, payload});
 }
 
+#if defined(__SWITCH__) || defined(__ANDROID__)
+// No libcurl portlib set up for these targets yet (Switch: no bsd/socket + TLS story built for
+// this; Android: not needed for the headless JIT-diagnostics build - see the development notes). Fail
+// the request immediately instead of hanging callers that are waiting on
+// `*pc-waiting-on-rpc?*` to clear - these are all optional online leaderboard features (see
+// game/kernel/*/kmachine_extras.cpp).
+void BackgroundWorker::job_web_request(WebRequestJobPayload payload) {
+  lg::warn("[Job:WebRequest]: networking not implemented on this platform, url={}", payload.url);
+  payload.callback(false, payload.cache_id, "networking not supported on this platform");
+}
+#else
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   ((std::string*)userp)->append((char*)contents, size * nmemb);
   return size * nmemb;
@@ -81,3 +94,4 @@ void BackgroundWorker::job_web_request(WebRequestJobPayload payload) {
     }
   }
 }
+#endif

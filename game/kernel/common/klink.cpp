@@ -3,6 +3,7 @@
 #include "common/goal_constants.h"
 #include "common/symbols.h"
 
+#include "game/kernel/common/cache.h"
 #include "game/kernel/common/fileio.h"
 #include "game/kernel/common/kscheme.h"
 
@@ -27,6 +28,24 @@ Ptr<Function> gfunc_774;
 void klink_init_globals() {
   saved_link_control.reset();
   gfunc_774.offset = 0;
+}
+
+void link_control::flush_code_cache() {
+#ifdef __aarch64__
+  if (m_opengoal) {
+    // v3 code is relocated to separate main/debug/top-level allocations. The
+    // original input buffer and m_code_size (zero for v3) cannot cover them.
+    // Run after all relocations and before publishing/executing functions. (AI-assisted)
+    const auto* header = m_link_block_ptr.cast<ObjectFileHeader>().c();
+    ASSERT(header->segment_count <= N_SEG);
+    for (u32 index = 0; index < header->segment_count; ++index) {
+      const auto& segment = header->code_infos[index];
+      if (segment.offset && segment.size) {
+        CacheFlush(Ptr<u8>(segment.offset).c(), segment.size);
+      }
+    }
+  }
+#endif
 }
 
 /*!

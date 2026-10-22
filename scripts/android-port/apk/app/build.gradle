@@ -1,0 +1,191 @@
+plugins {
+     id 'com.android.application'
+}
+
+// Always build with CMake (this project's real build system) - never ndk-build/Android.mk.
+def buildWithCMake = true;
+// Keep the Java/JNI implementation shared, but isolate installed apps and saves.
+// Default to the trilogy launcher; explicit properties retain the individual apps. (AI-assisted)
+def openGoalGame = providers.gradleProperty('openGoalGame').getOrElse('launcher')
+def launcherBuild = openGoalGame == 'launcher'
+// Precursor, powered by OpenGOAL. The per-game variants are developer builds. (AI-assisted)
+def gameLabels = [jak1: 'Precursor Jak 1 (dev)', jak2: 'Precursor Jak 2 (dev)',
+                  jak3: 'Precursor Jak 3 (dev)', launcher: 'Precursor']
+if (!gameLabels.containsKey(openGoalGame)) {
+    throw new GradleException('openGoalGame must be launcher, jak1, jak2 or jak3')
+}
+
+// Every APK names the exact commit it was built from, so bug reports can be matched to the code
+// and to the symbols of that build. "-dirty" marks uncommitted changes. (AI-assisted)
+def gitOutput = { List<String> command ->
+    try {
+        def process = command.execute(null, rootProject.projectDir)
+        process.waitFor()
+        return process.exitValue() == 0 ? process.text.trim() : ''
+    } catch (Exception ignored) {
+        return ''
+    }
+}
+def gitCommit = gitOutput(['git', 'rev-parse', '--short=12', 'HEAD']) ?: 'unknown'
+if (!gitOutput(['git', 'status', '--porcelain', '--untracked-files=no']).isEmpty()) gitCommit += '-dirty'
+def buildTime = new Date().format("yyyy-MM-dd HH:mm", TimeZone.getTimeZone('UTC')) + ' UTC'
+
+// Precursor's own signing key lives outside the repository (default
+// ~/.precursor/release-signing.properties: storeFile, storePassword, keyAlias, keyPassword).
+// When present it signs both debug and release builds, so a phone never has to uninstall (and
+// lose its saves) when switching between them. Without it, builds use the usual debug key.
+// (AI-assisted)
+def signingFile = file(providers.gradleProperty('precursorSigning')
+        .getOrElse(System.getProperty('user.home') + '/.precursor/release-signing.properties'))
+def signing = new Properties()
+if (signingFile.isFile()) signingFile.withInputStream { signing.load(it) }
+def hasSigning = signing.getProperty('storeFile') != null
+
+android {
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    namespace = "com.opengoalandroid.jak1"
+    buildFeatures {
+        buildConfig = true
+    }
+    compileSdkVersion 35
+    // Matches the NDK actually installed and already used successfully by
+    // scripts/android-port/cmake-poc this session (see the development notes).
+    ndkVersion = "29.0.14206865"
+    defaultConfig {
+        // Precursor's own id; the Java/JNI namespace stays com.opengoalandroid.jak1. (AI-assisted)
+        applicationId launcherBuild ? "io.github.thebardockgames.precursor"
+                : "io.github.thebardockgames.precursor.dev.${openGoalGame}"
+        buildConfigField 'String', 'OPENGOAL_GAME', '"' + openGoalGame + '"'
+        buildConfigField 'boolean', 'OPENGOAL_LAUNCHER', launcherBuild.toString()
+        buildConfigField 'String', 'GIT_COMMIT', '"' + gitCommit + '"'
+        buildConfigField 'String', 'BUILD_TIME', '"' + buildTime + '"'
+        manifestPlaceholders = [gameLabel: gameLabels[openGoalGame]]
+        // android-28, not the template's default android-21: cubeb_aaudio.cpp calls
+        // AAudioStreamBuilder_setInputPreset/setUsage, both __INTRODUCED_IN(28) - same reasoning
+        // as scripts/android-port/cmake-poc's ANDROID_PLATFORM choice.
+        minSdkVersion 28
+        targetSdkVersion 35
+        versionCode 1
+        versionName "0.1.0-beta"
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_PLATFORM=android-28", "-DANDROID_STL=c++_static"
+                arguments "-DOPENGOAL_ANDROID_LAUNCHER=" + (launcherBuild ? "ON" : "OFF")
+                targets "main", "SDL3-shared"
+                if (launcherBuild) {
+                    targets "opengoal_installer"
+                }
+                // arm64-v8a only - matches every other Android build in this fork
+                // (the development notes), no 32-bit/x86 Android target has ever been attempted.
+                abiFilters 'arm64-v8a'
+            }
+        }
+    }
+    signingConfigs {
+        if (hasSigning) {
+            precursor {
+                // A relative storeFile is next to the properties file, so the folder can be
+                // copied to another PC as is.
+                storeFile new File(signingFile.parentFile, signing.getProperty('storeFile')).isFile()
+                        ? new File(signingFile.parentFile, signing.getProperty('storeFile'))
+                        : file(signing.getProperty('storeFile'))
+                storePassword signing.getProperty('storePassword')
+                keyAlias signing.getProperty('keyAlias')
+                keyPassword signing.getProperty('keyPassword')
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            if (hasSigning) signingConfig signingConfigs.precursor
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasSigning) signingConfig signingConfigs.precursor
+            // Same native configuration as the debug APKs tested on phones (-O2 via
+            // OPENGOAL_ANDROID_OPTIMIZE, assertions and symbols kept), so a release does not
+            // change runtime behaviour. (AI-assisted)
+            externalNativeBuild {
+                cmake {
+                    arguments "-DCMAKE_BUILD_TYPE=Debug"
+                }
+            }
+        }
+    }
+    applicationVariants.all { variant ->
+        tasks["merge${variant.name.capitalize()}Assets"]
+            .dependsOn("externalNativeBuild${variant.name.capitalize()}")
+    }
+    if (!project.hasProperty('EXCLUDE_NATIVE_LIBS')) {
+        sourceSets.main {
+            jniLibs.srcDir 'libs'
+        }
+        externalNativeBuild {
+            if (buildWithCMake) {
+                cmake {
+                    path 'jni/CMakeLists.txt'
+                }
+            } else {
+                ndkBuild {
+                    path 'jni/Android.mk'
+                }
+            }
+        }
+
+    }
+    lint {
+        abortOnError = false
+        // The release-only "lint vital" pass reads the generated toolchain assets without a
+        // declared dependency and fails the build; lint still runs on demand. (AI-assisted)
+        checkReleaseBuilds = false
+    }
+}
+
+// Ship the same source/configuration inputs used by desktop releases, without ISOs,
+// extracted proprietary data, private user profiles or host build outputs. (AI-assisted)
+if (launcherBuild) {
+    def repo = file('../../../..')
+    def generatedAssets = layout.buildDirectory.dir('generated/launcherAssets')
+    def toolchain = tasks.register('bundleLauncherToolchain', Zip) {
+        archiveFileName = 'toolchain.zip'
+        destinationDirectory = generatedAssets
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
+        from(repo) {
+            include 'goal_src/**'
+            include 'decompiler/config/**'
+            include 'game/assets/**'
+            include 'game/graphics/opengl_renderer/shaders/**'
+            include 'custom_assets/**'
+            include 'LICENSE'
+            exclude 'goal_src/jakx/**', 'goal_src/user/**'
+            exclude 'decompiler/config/jakx/**', 'game/assets/jakx/**'
+        }
+    }
+    def digest = tasks.register('hashLauncherToolchain') {
+        dependsOn toolchain
+        inputs.file(toolchain.flatMap { it.archiveFile })
+        outputs.file(generatedAssets.map { it.file('toolchain.sha256') })
+        doLast {
+            def sha = java.security.MessageDigest.getInstance('SHA-256')
+            toolchain.get().archiveFile.get().asFile.withInputStream { input ->
+                byte[] buffer = new byte[1024 * 1024]
+                int count
+                while ((count = input.read(buffer)) != -1) sha.update(buffer, 0, count)
+            }
+            generatedAssets.get().file('toolchain.sha256').asFile.text = sha.digest().encodeHex().toString()
+        }
+    }
+    android.sourceSets.main.assets.srcDir(generatedAssets)
+    tasks.configureEach { task ->
+        if (task.name.startsWith('merge') && task.name.endsWith('Assets')) task.dependsOn digest
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+}

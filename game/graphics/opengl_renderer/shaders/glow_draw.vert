@@ -1,5 +1,6 @@
 #version 410 core
 
+
 layout (location = 0) in vec4 position_in;
 layout (location = 1) in vec4 rgba_in;
 layout (location = 2) in vec2 uv_texture_in;
@@ -15,10 +16,10 @@ uniform sampler2D tex_T1;
 void main() {
   vec4 transformed = position_in;
   transformed.xy -= (2048.);
-  transformed.z /= (8388608);
-  transformed.z -= 1;
-  transformed.x /= (256);
-  transformed.y /= -(128);
+  transformed.z /= (8388608.0);
+  transformed.z -= 1.0;
+  transformed.x /= (256.0);
+  transformed.y /= -(128.0);
   transformed.xyz *= transformed.w;
   // scissoring area adjust
   transformed.y *= SCISSOR_ADJUST * HEIGHT_SCALE;

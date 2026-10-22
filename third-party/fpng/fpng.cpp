@@ -83,6 +83,13 @@
 	#define __BYTE_ORDER __BYTE_ORDER__
 	#define __LITTLE_ENDIAN __LITTLE_ENDIAN__
 	#define __BIG_ENDIAN __BIG_ENDIAN__
+#elif defined(__SWITCH__)
+	// devkitA64's newlib only defines the single-underscore BSD-style names
+	// (_BYTE_ORDER/_LITTLE_ENDIAN/_BIG_ENDIAN) in <machine/endian.h>, not the
+	// glibc-style __BYTE_ORDER used here. Tegra X1 (ARM64) is little-endian.
+	#define __LITTLE_ENDIAN 1234
+	#define __BIG_ENDIAN 4321
+	#define __BYTE_ORDER __LITTLE_ENDIAN
 #else
 	// for __BYTE_ORDER (__LITTLE_ENDIAN or __BIG_ENDIAN)
 	#include <sys/param.h>

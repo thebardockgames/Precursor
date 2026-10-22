@@ -1,13 +1,8 @@
 name: Lint
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
-  merge_group: {}
+  # Same reasoning as build-matrix.yaml - manual only on this fork.
+  workflow_dispatch: {}
 
 jobs:
   formatting:

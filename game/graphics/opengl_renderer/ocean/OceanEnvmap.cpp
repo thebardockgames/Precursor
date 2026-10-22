@@ -73,8 +73,8 @@ bool find_sky_color(DmaFollower dma, u32 next_bucket, u8 out[4]) {
 
 OceanEnvmap::OceanEnvmap(const std::string& name, int my_id, int batch_size)
     : DirectRenderer(name, my_id, batch_size),
-      m_first_pass_fb(ENVMAP_WIDTH, ENVMAP_HEIGHT, GL_UNSIGNED_INT_8_8_8_8_REV),
-      m_envmap_fb(ENVMAP_WIDTH, ENVMAP_HEIGHT, GL_UNSIGNED_INT_8_8_8_8_REV) {}
+      m_first_pass_fb(ENVMAP_WIDTH, ENVMAP_HEIGHT, GL_UNSIGNED_BYTE),
+      m_envmap_fb(ENVMAP_WIDTH, ENVMAP_HEIGHT, GL_UNSIGNED_BYTE) {}
 
 static void make_single_level_linear(const GLuint tex) {
   glBindTexture(GL_TEXTURE_2D, tex);

@@ -182,6 +182,11 @@
   "Set the backup stack size of a thread. This should only be done on the main-thread.
   This should be done immediately after allocating the main-thread.
    Users can do this if they want a larger or smaller backup stack than the default."
+  ;; ARM64 frames are bigger than x86 ones, so the 128/192 byte backup stacks picked for x86
+  ;; overflow on suspend (crate die: 208/128, eco-pill pickup: 208/192 on a phone), and the
+  ;; stack copy then overwrites the thread's saved registers. Never go below 512 there. (AI-assisted)
+  (#when (eq? TARGET_ARCH 'arm64)
+    (set! stack-size (max stack-size 512)))
   (let ((proc (-> this process)))
     (cond
       ((neq? this (-> proc main-thread))
@@ -532,7 +537,7 @@
     (.push temp) ;; stack now 16 + 8 aligned
     ;; and call the function!
     (.add func off)
-    (.jr func)))
+    (.jr :stack-return #t func))) ;; install the pushed continuation in ARM64 LR (AI-assisted)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Context Suspend And Resume - Thread
@@ -1855,7 +1860,7 @@
     (.mov :color #f a2 s3)
     (.mov :color #f a3 s4)
     (.add :color #f s0 off)
-    (.jr :color #f s0)
+    (.jr :color #f :stack-return #t s0) ;; enter a function with its stacked return (AI-assisted)
     (.add a4 a4)
     (.add a5 a5)))
 

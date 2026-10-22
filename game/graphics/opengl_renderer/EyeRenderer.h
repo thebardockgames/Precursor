@@ -58,7 +58,7 @@ class EyeRenderer : public BucketRenderer {
     bool lr = false;
 
     // note: eye texture increased to 128x128 (originally 32x32) here.
-    GpuEyeTex() : fb(128, 128, GL_UNSIGNED_INT_8_8_8_8_REV) {}
+    GpuEyeTex() : fb(128, 128, GL_UNSIGNED_BYTE) {}
   } m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
 
   // xyst per vertex, 4 vertices per square, 4 draws per eye, 11 pairs of eyes, 2 eyes per pair.

@@ -1,5 +1,6 @@
 #version 410 core
 
+
 out vec4 color;
 
 uniform vec4 rgba;
@@ -15,7 +16,7 @@ uniform float slime_scroll;
 in vec2 uv;
 
 uniform sampler2D tex_T0;
-uniform sampler1D tex_T10;
+uniform highp sampler2D tex_T10;
 
 float cloud_lookup(float v, float minimum, float maximum) {
   maximum = max(minimum, maximum);
@@ -54,7 +55,7 @@ void main() {
   } else if (enable_tex == 3) {
     // cloud version
     vec4 tex_color = texture(tex_T0, uv + vec2(0, slime_scroll));
-    color = texelFetch(tex_T10, int(tex_color.r * 255.f), 0);
+    color = texelFetch(tex_T10, ivec2(int(tex_color.r * 255.f), 0), 0);
   } else {
     color = (rgba / 128.);
   }

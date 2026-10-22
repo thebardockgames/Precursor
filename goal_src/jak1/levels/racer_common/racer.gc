@@ -9,6 +9,15 @@
 
 (define-extern blocking-plane-spawn (function curve-control none :behavior process))
 
+;; ARM64 code needs more backup stack than x86 to suspend: the zoomer logged
+;; "suspend called without enough stack ... Stack: 272/256" hundreds of times on the
+;; Android level tour. x86 keeps the original 256. (AI-assisted)
+(#cond
+  ((eq? TARGET_ARCH 'arm64)
+   (defconstant RACER_BACKUP_STACK_SIZE 512))
+  (#t
+   (defconstant RACER_BACKUP_STACK_SIZE 256)))
+
 ;; DECOMP BEGINS
 
 (if (not (nmember "racerp" *kernel-packages*)) (set! *kernel-packages* (cons "racerp" *kernel-packages*)))
@@ -252,6 +261,8 @@
         (suspend))))
 
 (defmethod init-from-entity! ((this racer) (arg0 entity-actor))
+  ;; before any heap allocation, like crate-init! in Jak 2 (AI-assisted)
+  (stack-size-set! (-> this main-thread) RACER_BACKUP_STACK_SIZE)
   (let ((s4-0 (new 'process 'collide-shape-moving this (collide-list-enum hit-by-player))))
     (set! (-> s4-0 dynam) (copy *standard-dynamics* 'process))
     (set! (-> s4-0 reaction) default-collision-reaction)

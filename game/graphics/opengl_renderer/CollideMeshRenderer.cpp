@@ -323,6 +323,11 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
     glUniform1i(glGetUniformLocation(shader, "mode"), Gfx::g_global_settings.collision_mode);
     glDrawArrays(GL_TRIANGLES, 0, lev->level->collision.vertices.size());
 
+#ifndef __ANDROID__
+    // glPolygonMode(GL_LINE) has no GLES equivalent at all - this is a pure dev/debug
+    // visualization toggle (collision_wireframe), not gameplay-required, so it's simplest to just
+    // skip it on Android rather than reimplement wireframe rendering (e.g. via a
+    // barycentric-coordinate edge-distance shader trick) for a debug-only feature.
     if (Gfx::g_global_settings.collision_wireframe) {
       glUniform1i(glGetUniformLocation(shader, "wireframe"), 1);
       glDisable(GL_BLEND);
@@ -333,6 +338,7 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
       glEnable(GL_BLEND);
       glDepthMask(GL_TRUE);
     }
+#endif
 
     prof.add_draw_call();
     prof.add_tri(lev->level->collision.vertices.size() / 3);

@@ -3,6 +3,7 @@
 #include "common/common_types.h"
 
 #include "game/graphics/gfx.h"
+#include "game/kernel/common/cache.h"
 #include "game/kernel/common/kscheme.h"
 
 /*!
@@ -37,10 +38,6 @@ void InitCD();
  */
 void InitVideo();
 
-/*!
- * Flush caches.  Does all the memory, regardless of what you specify
- */
-void CacheFlush(void* mem, int size);
 u64 CPadOpen(u64 cpad_info, s32 pad_number);
 u64 CPadGetData(u64 cpad_info);
 void InstallHandler(u32 handler_idx, u32 handler_func);

@@ -284,7 +284,16 @@ Val* Compiler::compile_lambda(const goos::Object& form, const goos::Object& rest
         }
       }
 
-      new_func_env->emit_ir<IR_Return>(form, return_reg, final_result, ret_hw_reg);
+      if (func_block_env->return_types.size() > 1) {
+        // Merge early exits before the ABI move: the block value may be spilled. (AI-assisted)
+        new_func_env->emit_ir<IR_RegSet>(form, return_reg, final_result);
+        func_block_env->end_label.idx = new_func_env->code().size();
+        auto abi_return =
+            new_func_env->make_ireg(final_result->type(), return_reg->ireg().reg_class);
+        new_func_env->emit_ir<IR_Return>(form, abi_return, return_reg, ret_hw_reg);
+      } else {
+        new_func_env->emit_ir<IR_Return>(form, return_reg, final_result, ret_hw_reg);
+      }
 
       auto return_type = m_ts.lowest_common_ancestor(func_block_env->return_types);
       lambda_ts.add_arg(return_type);
@@ -293,7 +302,9 @@ Val* Compiler::compile_lambda(const goos::Object& form, const goos::Object& rest
       lambda_ts.add_arg(m_ts.make_typespec("none"));
     }
     // put null instruction at the end so jumps to the end have somewhere to go.
-    func_block_env->end_label.idx = new_func_env->code().size();
+    if (func_block_env->end_label.idx == -1) {
+      func_block_env->end_label.idx = new_func_env->code().size();
+    }
     new_func_env->emit_ir<IR_Null>(form);
     new_func_env->finish();
 

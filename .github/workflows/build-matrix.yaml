@@ -1,13 +1,14 @@
 name: Build
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
-  merge_group: {}
+  # Precursor disables the automatic push/pull_request
+  # triggers here: this matrix builds Windows x2, Linux x2 and macOS x2 (macOS
+  # runners bill at a 10x minutes multiplier on GitHub's free/private plan),
+  # which drains a personal account's included Actions minutes in just a few
+  # pushes during active development. Still available on demand via the
+  # Actions tab ("Run workflow") whenever real cross-platform confidence is
+  # wanted.
+  workflow_dispatch: {}
 
 jobs:
   # Windows

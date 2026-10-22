@@ -23,6 +23,19 @@ std::string LiveInfo::print_assignment() {
 
 namespace {
 
+bool can_reuse_dying_register(LiveInfo& dying,
+                             LiveInfo& born,
+                             int instr,
+                             const RegAllocInstr& op) {
+  // A gap in linear instruction order can end at a read reached by a branch.
+  // That is not a definition: sharing two inputs corrupts spill reloads (Jak 2
+  // nav-mesh stored its byte value through the value instead of the pointer).
+  // Only a write-only result may reuse a dying read-only input. (AI-assisted)
+  return (allow_read_write_same_reg || op.is_move) && dying.dies_next_at_instr(instr) &&
+         born.becomes_live_at_instr(instr) && op.reads(dying.var) && !op.writes(dying.var) &&
+         op.writes(born.var) && !op.reads(born.var);
+}
+
 /*!
  * Setup live_ranges. Must have found where iregs are live first.
  */
@@ -234,13 +247,11 @@ bool can_var_be_assigned(int var,
         bool allowed_by_move_eliminator = false;
         if (move_eliminator) {
           if (enable_fancy_coloring) {
-            if (lr.dies_next_at_instr(instr) && other_lr.becomes_live_at_instr(instr) &&
-                (allow_read_write_same_reg || in.instructions.at(instr).is_move)) {
+            if (can_reuse_dying_register(lr, other_lr, instr, in.instructions.at(instr))) {
               allowed_by_move_eliminator = true;
             }
 
-            if (lr.becomes_live_at_instr(instr) && other_lr.dies_next_at_instr(instr) &&
-                (allow_read_write_same_reg || in.instructions.at(instr).is_move)) {
+            if (can_reuse_dying_register(other_lr, lr, instr, in.instructions.at(instr))) {
               allowed_by_move_eliminator = true;
             }
           } else {
@@ -325,13 +336,11 @@ bool assignment_ok_at(int var,
       bool allowed_by_move_eliminator = false;
       if (move_eliminator) {
         if (enable_fancy_coloring) {
-          if (lr.dies_next_at_instr(idx) && other_lr.becomes_live_at_instr(idx) &&
-              (allow_read_write_same_reg || in.instructions.at(idx).is_move)) {
+          if (can_reuse_dying_register(lr, other_lr, idx, in.instructions.at(idx))) {
             allowed_by_move_eliminator = true;
           }
 
-          if (lr.becomes_live_at_instr(idx) && other_lr.dies_next_at_instr(idx) &&
-              (allow_read_write_same_reg || in.instructions.at(idx).is_move)) {
+          if (can_reuse_dying_register(other_lr, lr, idx, in.instructions.at(idx))) {
             allowed_by_move_eliminator = true;
           }
         } else {

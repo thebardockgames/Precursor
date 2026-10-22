@@ -22,7 +22,15 @@ void MouseDevice::poll_state(std::shared_ptr<PadData> data) {
   auto& binds = m_settings->mouse_binds;
   float curr_mouse_x;
   float curr_mouse_y;
+#ifdef __SWITCH__
+  // SDL2's mouse position out-params are int*, not SDL3's float*.
+  int curr_mouse_x_i, curr_mouse_y_i;
+  const auto mouse_state = SDL_GetMouseState(&curr_mouse_x_i, &curr_mouse_y_i);
+  curr_mouse_x = (float)curr_mouse_x_i;
+  curr_mouse_y = (float)curr_mouse_y_i;
+#else
   const auto mouse_state = SDL_GetMouseState(&curr_mouse_x, &curr_mouse_y);
+#endif
   const auto keyboard_modifier_state = SDL_GetModState();
 
   // We also poll for mouse position to see if the mouse has stopped moving
@@ -37,7 +45,15 @@ void MouseDevice::poll_state(std::shared_ptr<PadData> data) {
     if (m_control_camera) {
       float curr_mouse_relx;
       float curr_mouse_rely;
+#ifdef __SWITCH__
+      int curr_mouse_relx_i, curr_mouse_rely_i;
+      const auto mouse_state_rel =
+          SDL_GetRelativeMouseState(&curr_mouse_relx_i, &curr_mouse_rely_i);
+      curr_mouse_relx = (float)curr_mouse_relx_i;
+      curr_mouse_rely = (float)curr_mouse_rely_i;
+#else
       const auto mouse_state_rel = SDL_GetRelativeMouseState(&curr_mouse_relx, &curr_mouse_rely);
+#endif
       (void)mouse_state_rel;
       if (m_mouse_moved_x && m_last_xcoord == curr_mouse_x && curr_mouse_relx == 0) {
         data->analog_data.at(2) = 127;
@@ -228,7 +244,13 @@ void MouseDevice::process_event(const SDL_Event& event,
 
 void MouseDevice::enable_relative_mode(const bool enable) {
   // https://wiki.libsdl.org/SDL3/SDL_SetWindowRelativeMouseMode
+#ifdef __SWITCH__
+  // SDL2's relative mouse mode is a global setting, not per-window (moot on Switch anyway -
+  // there's only ever one window/no real mouse, but this keeps behavior close to intent).
+  SDL_SetRelativeMouseMode(enable ? SDL_TRUE : SDL_FALSE);
+#else
   SDL_SetWindowRelativeMouseMode(m_window, enable);
+#endif
 }
 
 void MouseDevice::enable_camera_control(const bool enable) {

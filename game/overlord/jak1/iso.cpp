@@ -733,6 +733,9 @@ u32 ISOThread() {
         } break;
         case SET_DIALOG_VOLUME: {
           auto* cmd = (VagCommand*)msg_from_mbx;
+          if (gDialogVolume != cmd->volume) {
+            lg::debug("[OVERLORD] dialog volume {} -> {}", gDialogVolume, cmd->volume);
+          }
           gDialogVolume = cmd->volume;
           if (in_progress_vag_command)
             SetVAGVol();
@@ -1313,6 +1316,20 @@ static s32 CheckVAGStreamProgress(VagCommand* vag) {
     return 1;
   }
 
+  // Diagnostic: before the last buffer, the voice only reaches the silent trap loop when the next
+  // half wasn't refilled in time. It then stays silent and the game cuts the line ~3 s later,
+  // which matches "voices sometimes aren't heard" on Android. Log it once per buffer. (AI-assisted)
+  {
+    static s32 s_underrun_buffer = -1;
+    if (vag->end_point == -1 && !vag->paused && vag->buffer_number > 1 &&
+        sceSdGetAddr(gVoice | SD_VA_NAX) > 0xBFFF && s_underrun_buffer != vag->buffer_number) {
+      s_underrun_buffer = vag->buffer_number;
+      lg::warn("[OVERLORD] VAG underrun: dialogue stream hit the silent trap at buffer {} "
+               "(ready_for_data={})",
+               vag->buffer_number, vag->ready_for_data);
+    }
+  }
+
   if (vag->end_point != -1) {
     if ((s32)(gPlayPos & 0xFFFFFFF0) == vag->end_point) {
       return 0;
@@ -1391,12 +1408,25 @@ static void CalculateVAGVolumes(s32 volume, s32 positioned, Vec3w* trans, s32* l
   }
 }
 
+// Diagnostic for silent dialogue: log the voice volume whenever it changes. (AI-assisted)
+static void LogVAGVolume(const char* why, VagCommand* vag, s32 left, s32 right) {
+  static s32 last_left = -1, last_right = -1;
+  if (left == last_left && right == last_right) {
+    return;
+  }
+  last_left = left;
+  last_right = right;
+  lg::debug("[OVERLORD] VAG volume ({}): left={} right={} cmd_volume={} dialog_volume={} positioned={}",
+            why, left, right, vag->volume, gDialogVolume, vag->positioned);
+}
+
 static void UnpauseVAG(VagCommand* vag) {
   gFakeVAGClockPaused = false;
   if (vag->paused) {
     if (vag->started) {
       s32 left = 0, right = 0;
       CalculateVAGVolumes(vag->volume, vag->positioned, &vag->trans, &left, &right);
+      LogVAGVolume("unpause", vag, left, right);
       sceSdSetParam(gVoice | SD_VP_VOLL, left);
       sceSdSetParam(gVoice | SD_VP_VOLR, right);
       sceSdSetParam(gVoice | SD_VP_PITCH, (vag->sample_rate << 12) / 48000);
@@ -1410,6 +1440,7 @@ void SetVAGVol() {
   if (gVAGCMD && gVAGCMD->started && !gVAGCMD->paused) {
     s32 left = 0, right = 0;
     CalculateVAGVolumes(gVAGCMD->volume, gVAGCMD->positioned, &gVAGCMD->trans, &left, &right);
+    LogVAGVolume("set", gVAGCMD, left, right);
     sceSdSetParam(gVoice | SD_VP_VOLL, left);
     sceSdSetParam(gVoice | SD_VP_VOLR, right);
   }

@@ -3,6 +3,7 @@
 #include "common/log/log.h"
 #include "common/symbols.h"
 
+#include "game/kernel/common/arm64_trampoline.h"
 #include "game/kernel/common/kmalloc.h"
 #include "game/kernel/common/kscheme.h"
 #include "game/kernel/jak1/kscheme.h"
@@ -11,7 +12,13 @@
 #include "game/runtime.h"
 
 extern "C" {
-#ifdef __linux__
+// Checked before __linux__ - devkitA64's bare-metal newlib target (Switch) doesn't define
+// __linux__ at all, so this branch also covers Switch, not just Android/real ARM64 Linux.
+#if defined(__aarch64__) && defined(__APPLE__)
+void _mips2c_call_arm64() asm("_mips2c_call_arm64");
+#elif defined(__aarch64__)
+void _mips2c_call_arm64();
+#elif defined __linux__
 void _mips2c_call_systemv();
 #elif defined __APPLE__ && defined __x86_64__
 void _mips2c_call_systemv() asm("_mips2c_call_systemv");
@@ -660,6 +667,14 @@ PerGameVersion<std::unordered_map<std::string, std::vector<void (*)()>>> gMips2C
     /////////// JAK X
     {}};
 
+#ifdef __aarch64__
+extern "C" {
+volatile u64 g_mips2c_debug_last_exec = 0;
+volatile u64 g_mips2c_debug_last_ret = 0xdeadbeef;
+volatile u64 g_mips2c_debug_call_count = 0;
+}
+#endif
+
 void LinkedFunctionTable::reg(const std::string& name, u64 (*exec)(void*), u32 stack_size) {
   const auto& it = m_executes.insert({name, {exec, Ptr<u8>()}});
   if (!it.second) {
@@ -693,6 +708,10 @@ void LinkedFunctionTable::reg(const std::string& name, u64 (*exec)(void*), u32 s
 
   u8* ptr = jump_to_asm.c();
 
+#ifdef __aarch64__
+  emit_arm64_mips2c_trampoline(ptr, reinterpret_cast<void*>(exec),
+                               reinterpret_cast<void*>(_mips2c_call_arm64), stack_size);
+#else
   {
     // linux
 
@@ -719,7 +738,7 @@ void LinkedFunctionTable::reg(const std::string& name, u64 (*exec)(void*), u32 s
     ptr++;
 
     // call the other function
-#ifdef __linux__
+#if defined __linux__
     addr = (u64)_mips2c_call_systemv;
 #elif defined __APPLE__ && defined __x86_64__
     addr = (u64)_mips2c_call_systemv;
@@ -739,6 +758,7 @@ void LinkedFunctionTable::reg(const std::string& name, u64 (*exec)(void*), u32 s
     ptr++;
     *ptr = 0xe0;
   }
+#endif
 }
 
 u32 LinkedFunctionTable::get(const std::string& name) {

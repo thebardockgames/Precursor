@@ -8,9 +8,14 @@
 #include "fmt/color.h"
 #include "fmt/format.h"
 #include "fmt/ranges.h"
+
+// See repl_wrapper.h - Wrapper is the interactive dev REPL's line editor, not usable on Switch.
+#ifndef __SWITCH__
 #include "third-party/replxx/include/replxx.hxx"
+#endif
 
 namespace REPL {
+#ifndef __SWITCH__
 void Wrapper::clear_screen() {
   repl.clear_screen();
 }
@@ -225,6 +230,7 @@ void Wrapper::init_settings() {
 void Wrapper::reload_startup_file() {
   startup_file = load_user_startup_file(username, repl_config.game_version);
 }
+#endif  // __SWITCH__
 
 std::string find_repl_username() {
   // Two options - either:
@@ -232,6 +238,10 @@ std::string find_repl_username() {
   // 2. if this is absent AND there is a single folder inside the "user" folder, use that as the
   // username
   auto user_dir = file_util::get_jak_project_dir() / "goal_src" / "user";
+  // Distributed launchers do not ship developer profiles. Their absence is normal. (AI-assisted)
+  if (!fs::is_directory(user_dir)) {
+    return "unknown";
+  }
   auto dirs = file_util::find_directories_in_dir(user_dir);
   if (dirs.size() == 1) {
     return dirs.at(0).filename().string();

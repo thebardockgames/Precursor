@@ -1,5 +1,6 @@
 #include "IOP_Kernel.h"
 
+#include <cstdio>
 #include <cstring>
 
 #include "common/global_profiler/GlobalProfiler.h"
@@ -10,6 +11,13 @@
 #include "game/sce/iop.h"
 
 using namespace std::chrono;
+
+namespace {
+// See the comment in IOP_Kernel::dispatch() - bounds how many coroutine-thread runs a
+// single dispatch() call may chain through before forcing a real return to the OS
+// scheduler. (AI-assisted)
+constexpr int kMaxDispatchItersBeforeYield = 500;
+}  // namespace
 
 /*
 ** wrap thread entry points to ensure they don't return into libco
@@ -406,6 +414,27 @@ std::optional<time_stamp> IOP_Kernel::dispatch() {
   if (next) {
     prof().root_event();
   }
+  // A backlog on one high-priority coroutine thread (observed: "ISO" re-arming itself
+  // thousands of times loading many chunks queued by a cinematic) can keep the scheduler
+  // continuously busy without any single dispatch() call looping long enough to trip a
+  // per-call guard - the same thread can instead go Ready -> Run -> (briefly) idle -> Ready
+  // again across many separate calls from runtime.cpp's outer loop, each one individually
+  // short, so nextWakeup() never returns "nothing to do" and wait_run_iop() is never
+  // reached. On real PS2 hardware that's harmless - EE and IOP are separate physical CPUs -
+  // but here the "IOP" is a real OS thread sharing a core, so monopolizing it starves
+  // cubeb's audio callback and any other IOP-side thread waiting at lower priority
+  // (observed as the EE thread stuck forever on "STALL: waiting for IOP on RPC port #0"
+  // after a burst of queued dialogue, and confirmed via /proc/<pid>/task/<tid>/stat: the
+  // IOP thread's utime kept climbing every sample with stime never moving, i.e. it was
+  // never actually reaching a real wait syscall). Track iterations across calls, not just
+  // within one, and force a real sleep periodically regardless of nextWakeup()'s verdict.
+  // (AI-assisted)
+  static u64 j3_intro_dispatch_calls = 0;
+  static u64 j3_intro_forced_yields = 0;
+  static u64 j3_intro_nullopt_returns = 0;
+  static u64 j3_intro_real_wakeups = 0;
+  j3_intro_dispatch_calls++;
+
   while (next != nullptr) {
     // Check vblank interrupt
     if (vblank_handler != nullptr && vblank_recieved) {
@@ -417,12 +446,50 @@ std::optional<time_stamp> IOP_Kernel::dispatch() {
     runThread(next);
     updateDelay();
     processWakeups();
+
+    // Count every actual thread run, not just chained ones still queued up right after -
+    // the pathology this guards against is many separate short dispatch() calls (one
+    // runThread() each), not necessarily one dispatch() call chaining hundreds in a row.
+    if (++iters_since_forced_yield >= kMaxDispatchItersBeforeYield) {
+      iters_since_forced_yield = 0;
+      j3_intro_forced_yields++;
+      if ((j3_intro_forced_yields & 0xff) == 0) {
+        lg::trace(
+            "[J3-INTRO-NATIVE] dispatch() forced-yield #{} (dispatch_calls={} nullopt={} "
+            "real_wakeup={}) last_thread={}",
+            j3_intro_forced_yields, j3_intro_dispatch_calls, j3_intro_nullopt_returns,
+            j3_intro_real_wakeups, next->name);
+      }
+      return time_point_cast<microseconds>(steady_clock::now()) + microseconds(500);
+    }
+
     next = schedNext();
     // printf("[IOP Kernel] back to kernel!\n");
   }
 
   // printf("[IOP Kernel] No runnable threads\n");
-  return nextWakeup();
+  auto wakeup = nextWakeup();
+  if (wakeup) {
+    iters_since_forced_yield = 0;
+    j3_intro_real_wakeups++;
+    if ((j3_intro_real_wakeups & 0xff) == 0) {
+      lg::trace(
+          "[J3-INTRO-NATIVE] dispatch() real wakeup #{} (dispatch_calls={} nullopt={} "
+          "forced_yields={})",
+          j3_intro_real_wakeups, j3_intro_dispatch_calls, j3_intro_nullopt_returns,
+          j3_intro_forced_yields);
+    }
+  } else {
+    j3_intro_nullopt_returns++;
+    if ((j3_intro_nullopt_returns & 0xfff) == 0) {
+      lg::trace(
+          "[J3-INTRO-NATIVE] dispatch() nullopt (no wakeup, thread stuck Ready) #{} "
+          "(dispatch_calls={} forced_yields={} real_wakeup={})",
+          j3_intro_nullopt_returns, j3_intro_dispatch_calls, j3_intro_forced_yields,
+          j3_intro_real_wakeups);
+    }
+  }
+  return wakeup;
 }
 
 void IOP_Kernel::set_rpc_queue(iop::sceSifQueueData* qd, u32 thread) {
@@ -475,6 +542,12 @@ void IOP_Kernel::sif_rpc(s32 rpcChannel,
     printf("Failed to find handler for sif channel 0x%x\n", rpcChannel);
   }
   ASSERT(rec);
+
+  lg::trace(
+      "[J3-INTRO-NATIVE] sif_rpc channel={} fno={} rec_found={} cmd.finished={} "
+      "cmd.started={} thread_to_wake={}",
+      rpcChannel, fno, rec != nullptr, rec ? rec->cmd.finished : false,
+      rec ? rec->cmd.started : false, rec ? rec->thread_to_wake : -1);
 
   // step 2 - check entry is safe to give command to
   ASSERT(rec->cmd.finished && rec->cmd.started);

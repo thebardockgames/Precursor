@@ -19,7 +19,11 @@ class Hfrag : public BucketRenderer {
 
   struct MontageTexture {
     FramebufferTexturePair fb;
-    MontageTexture() : fb(128, 128, GL_UNSIGNED_INT_8_8_8_8_REV) {}
+    // GL_UNSIGNED_INT_8_8_8_8_REV doesn't exist in GLES, but no data is transferred at creation
+    // (FramebufferTexturePair's ctor passes nullptr to glTexImage2D) so the exact type doesn't
+    // matter here - GL_UNSIGNED_BYTE is the closest real equivalent (see the identical reasoning
+    // in load_hfrag_level() in Hfrag.cpp).
+    MontageTexture() : fb(128, 128, GL_UNSIGNED_BYTE) {}
   };
 
   struct HfragLevel {

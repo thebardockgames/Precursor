@@ -188,11 +188,13 @@ void Tie3::load_from_fr3_data(const LevelData* loader_data) {
       // set up time of day texture.
       glActiveTexture(GL_TEXTURE10);
       glGenTextures(1, &lod_tree[l_tree].time_of_day_texture);
-      glBindTexture(GL_TEXTURE_1D, lod_tree[l_tree].time_of_day_texture);
-      glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 0, GL_RGBA,
-                   GL_UNSIGNED_INT_8_8_8_8, nullptr);
-      glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-      glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glBindTexture(GL_TEXTURE_2D, lod_tree[l_tree].time_of_day_texture);
+      // See the identical fix + full explanation in Hfrag.cpp's load_hfrag_level(): GLES has no
+      // sampler1D/glTexImage1D/GL_UNSIGNED_INT_8_8_8_8 - 2D-with-height-1 + GL_UNSIGNED_BYTE.
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 1, 0, GL_RGBA,
+                   GL_UNSIGNED_BYTE, nullptr);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
       glBindVertexArray(0);
 
@@ -262,7 +264,7 @@ bool Tie3::try_loading_level(const std::string& level, SharedRenderState* render
 void Tie3::discard_tree_cache() {
   for (int geo = 0; geo < 4; ++geo) {
     for (auto& tree : m_trees[geo]) {
-      glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
+      glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
       glDeleteTextures(1, &tree.time_of_day_texture);
       // glDeleteBuffers(1, &tree.index_buffer);
       glDeleteBuffers(1, &tree.single_draw_index_buffer);
@@ -436,9 +438,12 @@ void Tie3::setup_tree(int idx,
   interp_time_of_day(settings.camera.itimes, *tree.colors, m_color_result.data());
 
   glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-  glTexSubImage1D(GL_TEXTURE_1D, 0, 0, tree.colors->color_count, GL_RGBA,
-                  GL_UNSIGNED_INT_8_8_8_8_REV, m_color_result.data());
+  glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
+  // See the identical fix + full explanation in Hfrag.cpp's render_tree(): GL_UNSIGNED_INT_8_8_8_8_REV
+  // doesn't exist in GLES, but is byte-for-byte identical to GL_UNSIGNED_BYTE + GL_RGBA on any
+  // real little-endian hardware for this plain R,G,B,A-in-memory-order source type.
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tree.colors->color_count, 1, GL_RGBA,
+                  GL_UNSIGNED_BYTE, m_color_result.data());
 
   // update proto vis mask
   if (proto_vis_data) {
@@ -557,11 +562,13 @@ void Tie3::draw_matching_draws_for_tree(int idx,
                render_state->no_multidraw ? tree.single_draw_index_buffer : tree.index_buffer);
 
   glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
+  glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
 
   glActiveTexture(GL_TEXTURE0);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
 
   int last_texture = -1;
   for (size_t draw_idx = tree.category_draw_indices[(int)category];
@@ -939,11 +946,13 @@ void Tie3::render_tree_wind(int idx,
                render_state->no_multidraw ? tree.single_draw_index_buffer : tree.index_buffer);
 
   glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
+  glBindTexture(GL_TEXTURE_2D, tree.time_of_day_texture);
 
   glActiveTexture(GL_TEXTURE0);
+#ifndef __ANDROID__
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
+  #endif
 
   int last_texture = -1;
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tree.wind_vertex_index_buffer);

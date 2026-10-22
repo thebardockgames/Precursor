@@ -125,16 +125,6 @@ void InitVideo() {
 }
 
 /*!
- * Flush caches.  Does all the memory, regardless of what you specify
- */
-void CacheFlush(void* mem, int size) {
-  (void)mem;
-  (void)size;
-  // FlushCache(0);
-  // FlushCache(2);
-}
-
-/*!
  * Open a new controller pad.
  * Set the new_pad flag to 1 and state to 0.
  * Prints an error if it fails to open.
@@ -977,6 +967,13 @@ void pc_set_vsync(u32 sym_val) {
 }
 
 void pc_set_msaa(int samples) {
+  // GOAL only sends powers of two, but a phone report showed -786715568 reaching make_fbo and
+  // asserting. Keep the last good value and log the bad one so it can be traced. (AI-assisted)
+  if (samples < 1 || samples > 16 || (samples & (samples - 1)) != 0) {
+    lg::warn("pc_set_msaa: ignoring invalid sample count {} (keeping {})", samples,
+             Gfx::g_global_settings.msaa_samples);
+    return;
+  }
   Gfx::g_global_settings.msaa_samples = samples;
 }
 
