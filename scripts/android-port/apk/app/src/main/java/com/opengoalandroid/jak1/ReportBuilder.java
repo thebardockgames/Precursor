@@ -34,7 +34,7 @@ final class ReportBuilder {
     static String captureAbnormalSession(Context context, JSONObject session) {
         String game = session.optString("game");
         int pid = session.optInt("pid", -1);
-        String reason = null;
+        int reason = 0; // string resource taking the game title
         StringBuilder exit = new StringBuilder();
         if (Build.VERSION.SDK_INT >= 30 && pid > 0) {
             ActivityManager manager = context.getSystemService(ActivityManager.class);
@@ -42,14 +42,14 @@ final class ReportBuilder {
                 exit.append(info).append('\n');
                 switch (info.getReason()) {
                     case ApplicationExitInfo.REASON_CRASH:
-                    case ApplicationExitInfo.REASON_CRASH_NATIVE: reason = "se cerró por un error"; break;
-                    case ApplicationExitInfo.REASON_ANR: reason = "dejó de responder"; break;
-                    case ApplicationExitInfo.REASON_LOW_MEMORY: reason = "se cerró por falta de memoria"; break;
+                    case ApplicationExitInfo.REASON_CRASH_NATIVE: reason = R.string.exit_crashed; break;
+                    case ApplicationExitInfo.REASON_ANR: reason = R.string.exit_anr; break;
+                    case ApplicationExitInfo.REASON_LOW_MEMORY: reason = R.string.exit_low_memory; break;
                     case ApplicationExitInfo.REASON_SIGNALED:
-                        if (info.getStatus() != 9) reason = "se cerró por un error";
+                        if (info.getStatus() != 9) reason = R.string.exit_crashed;
                         break;
                     case ApplicationExitInfo.REASON_EXIT_SELF:
-                        if (info.getStatus() != 0) reason = "se cerró con un error";
+                        if (info.getStatus() != 0) reason = R.string.exit_error;
                         break;
                     default: break;
                 }
@@ -62,8 +62,8 @@ final class ReportBuilder {
         }
         File dump = LauncherStore.crashDump(context, game);
         boolean hasDump = dump.isFile() && dump.length() > 0;
-        if (hasDump && reason == null) reason = "se cerró por un error";
-        if (reason == null) return null;
+        if (hasDump && reason == 0) reason = R.string.exit_crashed;
+        if (reason == 0) return null;
         File pending = LauncherStore.pendingReportDir(context);
         try {
             InstallFiles.mkdir(pending);
@@ -71,7 +71,7 @@ final class ReportBuilder {
             write(new File(pending, "exit-info.txt"), exit.length() == 0 ? "(no disponible en esta versión de Android)" : exit.toString());
             if (hasDump) copyLimited(new FileInputStream(dump), new File(pending, "crash-" + game + ".txt"));
         } catch (Exception ignored) { }
-        return InstallService.title(game) + " " + reason;
+        return context.getString(reason, InstallService.title(game));
     }
 
     static boolean hasPendingCrash(Context context) {

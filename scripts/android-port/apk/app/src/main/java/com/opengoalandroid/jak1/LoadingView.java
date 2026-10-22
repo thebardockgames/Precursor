@@ -33,7 +33,7 @@ final class LoadingView extends FrameLayout {
             if (!slowShown && SystemClock.elapsedRealtime() - started > SLOW_MS) {
                 slowShown = true;
                 status.animate().alpha(0f).setDuration(200).withEndAction(() -> {
-                    status.setText("Iniciando el motor… La primera vez tarda un poco más.");
+                    status.setText(R.string.loading_slow);
                     status.animate().alpha(1f).setDuration(200).start();
                 }).start();
             }
@@ -71,7 +71,7 @@ final class LoadingView extends FrameLayout {
         barParams.topMargin = dp(16);
         stack.addView(bar, barParams);
 
-        status = UiKit.label(activity, "Iniciando el motor…", 13, UiKit.MUTED, false);
+        status = UiKit.label(activity, activity.getString(R.string.loading_engine), 13, UiKit.MUTED, false);
         status.setTypeface(Typeface.MONOSPACE);
         status.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-2, -2);
@@ -79,7 +79,7 @@ final class LoadingView extends FrameLayout {
         stack.addView(status, statusParams);
         addView(stack, new LayoutParams(-2, -2, Gravity.CENTER));
 
-        TextView credit = UiKit.label(activity, "Precursor · powered by OpenGOAL · proyecto no oficial", 11, 0x99A9B8C4, false);
+        TextView credit = UiKit.label(activity, activity.getString(R.string.loading_credit), 11, 0x99A9B8C4, false);
         LayoutParams creditParams = new LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         creditParams.bottomMargin = dp(18);
         addView(credit, creditParams);

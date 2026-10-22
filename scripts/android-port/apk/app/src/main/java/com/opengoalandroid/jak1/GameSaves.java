@@ -81,21 +81,29 @@ final class GameSaves {
     }
 
     /** *level-task-data-remap* + *level-task-data* (goal_src/jak1/engine/ui/progress/progress-static.gc),
-     *  names from decompiler_out/jak1/assets/game_text.txt (es-ES, index 3). Jak1 only: jak2/jak3 use a
-     *  different, unmapped progress-menu structure, so those fall back to a generic "Nivel #N" label. */
+     *  names from decompiler_out/jak1/assets/game_text.txt. Jak1 only: jak2/jak3 use a different,
+     *  unmapped progress-menu structure, so those fall back to a generic "Level #N" label. The names
+     *  the player sees are the jak1_levels string resources (UiKit.levelName); these English ones
+     *  name exported files. */
     private static final int[] JAK1_LEVEL_REMAP = {
             0, 1, 2, 3, 3, 4, 5, 6, 7, 7, 8, 9, 10, 11, 12, 13, 13, 13, 14, 15, 15, 4, 4};
     private static final String[] JAK1_LEVEL_NAMES = {
-            "Roca del Géiser", "Aldea de Sandover", "Playa del Centinela", "Selva Prohibida",
-            "Isla de Misty", "Desfiladero del Fuego", "Aldea de Piedra", "Ciudad Perdida de Precursor",
-            "Pantano Cenagoso", "Cuenca de Precursor", "Paso entre las Montañas", "Cráter Volcánico",
-            "Montaña Nevada", "Cueva de las Arañas", "Conducto de Lava", "Ciudadela de Gol y Maia"};
+            "Geyser Rock", "Sandover Village", "Sentinel Beach", "Forbidden Jungle",
+            "Misty Island", "Fire Canyon", "Rock Village", "Lost Precursor City",
+            "Boggy Swamp", "Precursor Basin", "Mountain Pass", "Volcanic Crater",
+            "Snowy Mountain", "Spider Cave", "Lava Tube", "Gol and Maia's Citadel"};
+
+    /** Index into JAK1_LEVEL_NAMES (and jak1_levels) for a save's level, or -1. */
+    static int jak1Level(String game, int levelIndex) {
+        if ("jak1".equals(game) && levelIndex >= 1 && levelIndex <= JAK1_LEVEL_REMAP.length)
+            return JAK1_LEVEL_REMAP[levelIndex - 1];
+        return -1;
+    }
 
     static String levelName(String game, int levelIndex) {
-        if ("jak1".equals(game) && levelIndex >= 1 && levelIndex <= JAK1_LEVEL_REMAP.length) {
-            return JAK1_LEVEL_NAMES[JAK1_LEVEL_REMAP[levelIndex - 1]];
-        }
-        return levelIndex > 0 ? "Nivel #" + levelIndex : "Partida nueva";
+        int level = jak1Level(game, levelIndex);
+        if (level >= 0) return JAK1_LEVEL_NAMES[level];
+        return levelIndex > 0 ? "Level " + levelIndex : "New game";
     }
 
     static File savesDir(Context context, String game) {
@@ -197,10 +205,10 @@ final class GameSaves {
      * written, and restored if writing fails.
      */
     static void importSlot(File savesDir, Profile profile, int slot, List<byte[]> banks) throws IOException {
-        if (banks.isEmpty() || banks.size() > 2) throw new IOException("El archivo no contiene una partida válida");
+        if (banks.isEmpty() || banks.size() > 2) throw new IOException(Texts.get("save_invalid"));
         for (byte[] bank : banks) {
             if (parseBank(bank, profile) == null)
-                throw new IOException("El archivo no es una partida válida de este juego (o está dañada)");
+                throw new IOException(Texts.get("save_wrong_game"));
         }
         InstallFiles.mkdir(savesDir);
         File[] targets = {bankFile(savesDir, slot, 0), bankFile(savesDir, slot, 1)};
@@ -208,7 +216,7 @@ final class GameSaves {
         for (int i = 0; i < 2; i++) {
             backups[i].delete();
             if (targets[i].exists() && !targets[i].renameTo(backups[i]))
-                throw new IOException("No se pudo respaldar la partida actual");
+                throw new IOException(Texts.get("save_backup_failed"));
         }
         try {
             for (int i = 0; i < banks.size(); i++) {
@@ -217,7 +225,7 @@ final class GameSaves {
                     out.write(banks.get(i));
                     out.getFD().sync();
                 }
-                if (!temp.renameTo(targets[i])) throw new IOException("No se pudo escribir la partida");
+                if (!temp.renameTo(targets[i])) throw new IOException(Texts.get("save_write_failed"));
             }
         } catch (IOException error) {
             for (int i = 0; i < 2; i++) {

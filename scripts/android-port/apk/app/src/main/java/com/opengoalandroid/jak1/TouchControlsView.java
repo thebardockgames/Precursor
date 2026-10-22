@@ -41,10 +41,24 @@ final class TouchControlsView extends View {
         }
     };
 
+    private final String hideLabel, showLabel, menuLabel, moveLabel, cameraLabel;
+    private boolean showFps = true;
+
+    /** The game's Graphics option "FPS counter". (AI-assisted) */
+    void setShowFps(boolean show) {
+        showFps = show;
+        invalidate();
+    }
+
     TouchControlsView(Context context) {
         super(context);
         setFocusable(false);
-        setContentDescription("Controles táctiles: dos sticks, cruceta y botones de PlayStation");
+        setContentDescription(context.getString(R.string.touch_description));
+        hideLabel = context.getString(R.string.touch_hide);
+        showLabel = context.getString(R.string.touch_show);
+        menuLabel = context.getString(R.string.touch_menu);
+        moveLabel = context.getString(R.string.touch_move);
+        cameraLabel = context.getString(R.string.touch_camera);
     }
 
     private static native void nativeSetState(float lx, float ly, float rx, float ry, int buttons);
@@ -171,19 +185,21 @@ final class TouchControlsView extends View {
         canvas.save();
         canvas.translate(offsetX, offsetY);
         canvas.scale(scale, scale);
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.argb(155, 10, 18, 28));
-        canvas.drawRoundRect(182, 15, 340, 47, 8, 8, paint);
-        text(canvas, fpsLabel, 261, 31, 12, Color.rgb(160, 255, 170));
+        if (showFps) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(155, 10, 18, 28));
+            canvas.drawRoundRect(182, 15, 340, 47, 8, 8, paint);
+            text(canvas, fpsLabel, 261, 31, 12, Color.rgb(160, 255, 170));
+        }
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Color.argb(85, 10, 18, 28));
         canvas.drawRoundRect(465, 10, 535, 54, 12, 12, paint);
-        text(canvas, controlsVisible ? "OCULTAR" : "MANDO", 500, 32, 10, Color.argb(180, 255, 255, 255));
+        text(canvas, controlsVisible ? hideLabel : showLabel, 500, 32, 10, Color.argb(180, 255, 255, 255));
         if (onMenu != null) {
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(Color.argb(85, 10, 18, 28));
             canvas.drawRoundRect(555, 10, 625, 54, 12, 12, paint);
-            text(canvas, "MENÚ", 590, 32, 10, Color.argb(180, 255, 255, 255));
+            text(canvas, menuLabel, 590, 32, 10, Color.argb(180, 255, 255, 255));
         }
         if (controlsVisible) {
             for (TouchControlsState.Control control : state.controls) {
@@ -213,7 +229,7 @@ final class TouchControlsView extends View {
         circle(canvas, c.x + state.axes[axis] * c.radius * 0.55f,
                c.y + state.axes[axis + 1] * c.radius * 0.55f, c.radius * 0.40f,
                state.axes[axis] != 0 || state.axes[axis + 1] != 0);
-        text(canvas, c.label, c.x, c.y + c.radius + 14, 9, Color.argb(155, 240, 245, 255));
+        text(canvas, c.code == TouchControlsState.LEFT_STICK ? moveLabel : cameraLabel, c.x, c.y + c.radius + 14, 9, Color.argb(155, 240, 245, 255));
     }
 
     private void drawButton(Canvas canvas, TouchControlsState.Control c) {

@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Precursor em português (Brasil). (AI-assisted) -->
+<resources>
+    <!-- Branding -->
+    <string name="brand_tagline">POWERED BY OPENGOAL · NÃO OFICIAL</string>
+    <string name="brand_pill">powered by OpenGOAL · não oficial</string>
+    <string name="loading_credit">Precursor · powered by OpenGOAL · projeto não oficial</string>
+
+    <!-- Common -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancelar</string>
+    <string name="close">Fechar</string>
+    <string name="back">Voltar</string>
+    <string name="choose">Escolher</string>
+    <string name="menu">Menu</string>
+    <string name="no_file_picker">Nenhum seletor de arquivos disponível.</string>
+    <string name="cannot_open_file">Não foi possível abrir o arquivo</string>
+    <string name="cannot_open_destination">Não foi possível abrir o destino</string>
+
+    <!-- Gamepad hints -->
+    <string name="hint_start">Começar</string>
+    <string name="hint_continue_background">Continuar em segundo plano</string>
+    <string name="hint_play">Jogar</string>
+    <string name="hint_add">Adicionar</string>
+    <string name="hint_options">Opções</string>
+    <string name="hint_switch_game">Trocar de jogo</string>
+    <string name="hint_open">Abrir</string>
+    <string name="hint_section">Seção</string>
+
+    <!-- Guided setup -->
+    <string name="step_of">Passo %1$d de 5</string>
+    <string name="welcome_title">Boas-vindas ao Precursor</string>
+    <string name="welcome_body">A trilogia Jak and Daxter, nativa no seu celular.</string>
+    <string name="pick_title">Qual jogo você tem?</string>
+    <string name="pick_body">Escolha o jogo da sua ISO. Você pode adicionar os outros depois.</string>
+    <string name="iso_size">ISO de %1$s GB</string>
+    <string name="pick_game">Escolher %1$s</string>
+    <string name="iso_title">Encontre sua ISO de %1$s</string>
+    <string name="iso_body">O seletor de arquivos do Android vai abrir. Sua ISO não é modificada nem enviada para lugar nenhum.</string>
+    <string name="iso_space">Você precisa de cerca de %1$s GB livres para prepará-lo; você tem %2$s GB.</string>
+    <string name="iso_help">Copie a ISO do seu disco de PS2 para a pasta Downloads do celular com um cabo USB ou a partir de um cartão SD. As edições NTSC, PAL e NTSC-J funcionam. As versões de PS3, PS4 e PS5 não.</string>
+    <string name="iso_choose">Escolher minha ISO</string>
+    <string name="iso_help_hide">Ocultar ajuda</string>
+    <string name="iso_help_show">Como copio a ISO?</string>
+    <string name="check_title">Verificando sua ISO…</string>
+    <string name="check_body">Lendo o disco para confirmar que é %1$s e que a edição é compatível.</string>
+    <string name="prepare_title">Preparando %1$s</string>
+    <string name="prepare_progress">%1$d%% · Isso leva alguns minutos. Você pode sair: avisaremos quando terminar.</string>
+    <string name="stage_of">Etapa %1$d de %2$d · %3$s</string>
+    <string name="done_title">%1$s está pronto!</string>
+    <string name="done_body">Seus jogos salvos ficam no celular. Você pode adicionar os outros jogos pelo menu quando quiser.</string>
+    <string name="play_now">▶  Jogar agora</string>
+    <string name="go_to_menu">Ir para o menu</string>
+    <string name="error_title">Não foi possível preparar %1$s</string>
+    <string name="error_stopped">A preparação parou.</string>
+    <string name="choose_another_iso">Escolher outra ISO</string>
+    <string name="view_log">Ver registro</string>
+    <string name="report">Relatar</string>
+    <string name="report_prepare_failed">Falha ao preparar %1$s: %2$s</string>
+    <string name="already_preparing">Um jogo já está sendo preparado. Aguarde até terminar.</string>
+    <string name="already_preparing_short">Um jogo já está sendo preparado.</string>
+    <string name="cancel_prepare_title">Cancelar a preparação?</string>
+    <string name="cancel_prepare_body">O que foi preparado até agora será apagado. Sua ISO não é alterada.</string>
+    <string name="keep_preparing">Continuar preparando</string>
+    <string name="prepare_interrupted">A preparação foi interrompida (o Android fechou o processo). Escolha a ISO novamente.</string>
+    <string name="could_not_start">Não foi possível iniciar: %1$s</string>
+
+    <!-- Installation stages -->
+    <string name="stage_copy">Copiando a ISO</string>
+    <string name="stage_extract">Extraindo arquivos</string>
+    <string name="stage_levels">Preparando fases e áudio</string>
+    <string name="stage_compile">Compilando para o seu celular</string>
+    <string name="stage_finish">Toques finais</string>
+
+    <!-- Shelf -->
+    <string name="your_games">SEUS JOGOS</string>
+    <string name="settings">Configurações</string>
+    <string name="tile_ready">Pronto</string>
+    <string name="tile_add">+ Adicionar</string>
+    <string name="tile_installed">%1$s, instalado</string>
+    <string name="tile_not_installed">%1$s, não instalado</string>
+    <string name="pill_installed">● Instalado</string>
+    <string name="pill_not_installed">○ Não instalado</string>
+    <string name="new_game">Novo jogo</string>
+    <string name="level_number">Fase nº %1$d</string>
+    <string name="needs_free">Precisa de ~%1$s GB livres</string>
+    <string name="continue_game">▶  Continuar</string>
+    <string name="play">▶  Jogar</string>
+    <string name="saves_and_options">Jogos salvos e opções</string>
+    <string name="add_iso">＋  Adicionar ISO de %1$s</string>
+
+    <!-- Settings and about -->
+    <string name="settings_about">Sobre o Precursor</string>
+    <string name="settings_log">Registro de instalação</string>
+    <string name="settings_welcome">Mostrar as boas-vindas de novo</string>
+    <string name="settings_language">Idioma</string>
+    <string name="language_title">Idioma</string>
+    <string name="language_system">Idioma do celular (%1$s)</string>
+    <string name="language_note">Os textos e legendas dos jogos também usam este idioma. As vozes dependem do seu disco.</string>
+    <string name="about_title">Precursor · powered by OpenGOAL</string>
+    <string name="about_body">O Precursor é um port não oficial da trilogia Jak and Daxter para Android, feito com base no OpenGOAL (opengoal.dev). Ele não é afiliado à equipe do OpenGOAL, à Naughty Dog nem à Sony: não relate os problemas deste app ao OpenGOAL.\n\nVocê precisa da ISO do seu próprio disco. O Precursor não inclui nenhum arquivo dos jogos.\n\nControles: toque na tela ou qualquer controle compatível. No menu: direcional para mover, A para aceitar, B para voltar, X para opções, LB/RB para trocar de jogo.\n\nVersão %1$s · %2$s</string>
+    <string name="got_it">Entendi</string>
+
+    <!-- Log -->
+    <string name="log_title">Registro de instalação</string>
+    <string name="save_log">Salvar registro</string>
+    <string name="log_saved">Registro salvo</string>
+    <string name="log_empty">Ainda não há mensagens do instalador.</string>
+    <string name="log_missing">Ainda não há um registro de instalação.</string>
+
+    <!-- Playing -->
+    <string name="unsupported_title">Seu celular não é compatível</string>
+    <string name="unsupported_body">O jogo precisa de OpenGL ES 3.2 e este celular informa OpenGL ES %1$s. É bem provável que ele feche ao abrir.</string>
+    <string name="try_anyway">Tentar mesmo assim</string>
+    <string name="another_game">Outro jogo</string>
+    <string name="still_open_title">%1$s ainda está aberto</string>
+    <string name="still_open_body">Para jogar %1$s, é preciso fechar %2$s. Tudo o que você não salvou será perdido.</string>
+    <string name="close_and_open">Fechar e abrir</string>
+
+    <!-- Crashes and reports -->
+    <string name="crash_title">O jogo fechou inesperadamente</string>
+    <string name="crash_body">%1$s. Quer enviar um relatório para ajudar a corrigir? Ele inclui registros técnicos, não seus jogos salvos.</string>
+    <string name="not_now">Agora não</string>
+    <string name="send_report">Enviar relatório</string>
+    <string name="report_hint">O que você estava fazendo? (fase, o que aconteceu…)</string>
+    <string name="report_title">Relatar um problema</string>
+    <string name="report_body">Será criado um arquivo .zip com informações do celular e registros do launcher e do jogo. Ele não inclui seus jogos salvos nem a ISO. Depois, escolha para onde enviar (Discord, e-mail…).</string>
+    <string name="create_and_share">Criar e compartilhar</string>
+    <string name="preparing_report">Preparando o relatório…</string>
+    <string name="report_subject">Relatório do Precursor %1$s</string>
+    <string name="report_failed">Não foi possível criar o relatório: %1$s</string>
+    <string name="exit_crashed">%1$s fechou por causa de um erro</string>
+    <string name="exit_anr">%1$s parou de responder</string>
+    <string name="exit_low_memory">%1$s fechou por falta de memória</string>
+    <string name="exit_error">%1$s fechou com um erro</string>
+
+    <!-- Game options -->
+    <string name="options_caps">OPÇÕES</string>
+    <string name="tab_saves">Salvos</string>
+    <string name="tab_mods">Mods</string>
+    <string name="tab_controls">Controles</string>
+    <string name="tab_remove">Remover</string>
+    <string name="section">Seção %1$s</string>
+    <string name="saves_title">Jogos salvos</string>
+    <string name="saves_hint">Feche o jogo antes de substituir ou importar um jogo salvo.</string>
+    <string name="slot_empty">vazio</string>
+    <string name="slot_title">Espaço %1$d · %2$s</string>
+    <string name="export">Exportar</string>
+    <string name="replace">Substituir</string>
+    <string name="no_saved_data">Nenhum dado salvo.</string>
+    <string name="import_save">Importar jogo salvo</string>
+    <string name="replace_title">Substituir o espaço %1$d?</string>
+    <string name="replace_body">Este jogo salvo será substituído pelo arquivo que você escolher. Exporte-o antes se quiser mantê-lo.</string>
+    <string name="choose_file">Escolher arquivo</string>
+    <string name="save_exported">Jogo salvo exportado</string>
+    <string name="export_failed">Não foi possível exportar: %1$s</string>
+    <string name="invalid_save_for">O arquivo não contém um jogo salvo válido de %1$s</string>
+    <string name="save_imported">Jogo salvo importado</string>
+    <string name="import_failed">Não foi possível importar: %1$s</string>
+    <string name="mods_hint">Feche o jogo antes de ativar ou desativar um mod.</string>
+    <string name="import_mod">＋  Importar um mod (.zip)</string>
+    <string name="no_mods">Nenhum mod importado ainda.</string>
+    <string name="enable">Ativar</string>
+    <string name="disable">Desativar</string>
+    <string name="delete">Excluir</string>
+    <string name="mod_state_enabled">● Ativado</string>
+    <string name="mod_state_disabled">○ Desativado</string>
+    <string name="mod_now_enabled">%1$s ativado</string>
+    <string name="mod_now_disabled">%1$s desativado</string>
+    <string name="mod_imported">%1$s importado</string>
+    <string name="apply_failed">Não foi possível aplicar: %1$s</string>
+    <string name="delete_mod_title">Excluir %1$s?</string>
+    <string name="delete_mod_enabled_body">Ele será desativado e o pacote importado será excluído.</string>
+    <string name="delete_mod_body">O pacote importado será excluído.</string>
+    <string name="delete_failed">Não foi possível excluir: %1$s</string>
+    <string name="controls_title">Controles de toque</string>
+    <string name="controls_hint">Os botões na tela do jogo. Qualquer controle compatível sempre funciona.</string>
+    <string name="touch_auto">Automático</string>
+    <string name="touch_auto_desc">Ficam ocultos enquanto um controle está conectado e voltam quando ele é desconectado.</string>
+    <string name="touch_always">Sempre visíveis</string>
+    <string name="touch_always_desc">Útil se você alterna entre o controle e a tela.</string>
+    <string name="touch_never">Ocultos</string>
+    <string name="touch_never_desc">Só controle. Você pode mostrá-los no jogo com o botão MOSTRAR, no topo.</string>
+    <string name="remove_title">Remover instalação</string>
+    <string name="remove_hint">Libera o espaço usado por %1$s. Seus jogos salvos e a ISO original são mantidos; para jogar de novo, você terá que adicionar a ISO outra vez.</string>
+    <string name="remove_button">Remover %1$s</string>
+    <string name="remove_confirm_title">Remover %1$s?</string>
+    <string name="remove_confirm_body">Os arquivos instalados serão excluídos. Seus jogos salvos e a ISO original são mantidos.</string>
+    <string name="remove">Remover</string>
+    <string name="wait_for_preparation">Aguarde a preparação atual terminar.</string>
+    <string name="removing_game">Removendo %1$s…</string>
+
+    <!-- Graphics (game options) -->
+    <string name="tab_graphics">Gráficos</string>
+    <string name="graphics_hint">Vale a partir da próxima vez que o jogo abrir. O menu do próprio jogo (Opções › Gráficos) tem mais ajustes, como sombras e nível de detalhe.</string>
+    <string name="render_scale_title">Resolução interna</string>
+    <string name="render_scale_desc">Valores menores rodam mais liso e esquentam menos o celular; a imagem fica um pouco mais suave.</string>
+    <string name="render_scale_option">%1$d%% · %2$d × %3$d</string>
+    <string name="render_scale_native">%1$d%% · %2$d × %3$d (nativa)</string>
+    <string name="other_title">Outros</string>
+    <string name="show_fps">Contador de FPS</string>
+    <string name="show_fps_desc">Quadros por segundo e tempo por quadro no topo da tela.</string>
+    <string name="sustained">Desempenho estável</string>
+    <string name="sustained_desc">Pede ao Android uma velocidade constante em vez de picos curtos, para o jogo desacelerar menos quando o celular esquenta. A velocidade máxima pode cair um pouco.</string>
+    <string name="sustained_unsupported">Seu celular não oferece o modo de desempenho estável do Android.</string>
+
+    <!-- Updates and backups -->
+    <string name="settings_updates">Atualizações</string>
+    <string name="settings_backups">Backups de jogos salvos e configurações</string>
+    <string name="prepare_again_keeps">Seus jogos salvos e configurações são mantidos: preparar de novo só substitui os arquivos do jogo.</string>
+    <string name="stale_required_pill">⚠ Prepare de novo para jogar</string>
+    <string name="stale_recommended_pill">↻ Melhorias disponíveis: prepare de novo</string>
+    <string name="prepare_again">↻  Preparar de novo</string>
+    <string name="prepare_again_title">Preparar %1$s de novo</string>
+    <string name="stale_required_body">Esta versão do Precursor mudou a forma como os jogos são preparados. %1$s foi preparado com uma versão anterior e pode fechar ou não abrir. Escolha sua ISO de novo para prepará-lo.</string>
+    <string name="stale_recommended_body">Esta versão do Precursor traz correções para %1$s que só valem depois de prepará-lo de novo a partir da sua ISO. Até lá, você pode continuar jogando assim.</string>
+    <string name="data_is_kept">Seus jogos salvos e configurações não são alterados, e uma cópia de segurança é feita automaticamente.</string>
+    <string name="play_anyway">Jogar mesmo assim</string>
+    <string name="updated_title">O Precursor foi atualizado para %1$s</string>
+    <string name="updated_required">Esta versão mudou a forma como os jogos são preparados. Prepare de novo a partir da sua ISO: %1$s. Até lá, eles podem fechar.</string>
+    <string name="updated_recommended">Esta versão traz correções para %1$s. Para recebê-las, prepare o jogo de novo a partir da sua ISO; enquanto isso, você pode continuar jogando.</string>
+    <string name="updated_nothing">Seus jogos estão prontos para jogar do jeito que estão.</string>
+    <string name="updates_title">Atualizações · versão %1$s</string>
+    <string name="update_check_now">Procurar atualizações agora</string>
+    <string name="update_channel">Canal: %1$s</string>
+    <string name="update_channel_stable">Estável</string>
+    <string name="update_channel_alpha">Alpha</string>
+    <string name="update_auto">Procurar automaticamente: %1$s</string>
+    <string name="yes">Sim</string>
+    <string name="no">Não</string>
+    <string name="update_channel_title">Canal de atualizações</string>
+    <string name="update_stable_desc">versões testadas</string>
+    <string name="update_alpha_desc">versões antecipadas com as novidades mais recentes; podem ter bugs</string>
+    <string name="update_checking">Procurando atualizações…</string>
+    <string name="update_none">Você já tem a versão mais recente (%1$s).</string>
+    <string name="update_offline">Não foi possível conectar ao GitHub. Verifique sua conexão com a internet.</string>
+    <string name="update_check_failed">Não foi possível procurar atualizações: %1$s</string>
+    <string name="update_available">Precursor %1$s está disponível</string>
+    <string name="update_available_alpha">Precursor %1$s (alpha) está disponível</string>
+    <string name="update_keeps_data">A atualização mantém seus jogos, jogos salvos e configurações, e antes é feita uma cópia dos seus jogos salvos. Se esta versão precisar que algum jogo seja preparado de novo, o Precursor vai avisar depois de atualizar.</string>
+    <string name="update_now">Atualizar</string>
+    <string name="update_skip">Pular esta versão</string>
+    <string name="update_close_game">Feche o jogo antes de atualizar.</string>
+    <string name="update_permission_title">Permita que o Precursor instale atualizações</string>
+    <string name="update_permission_body">O Android pede uma única vez permissão para instalar atualizações pelo Precursor. Ative a chave desta fonte (seu celular pode mostrar também um aviso para aceitar) e volte: a atualização continua sozinha.</string>
+    <string name="update_open_settings">Abrir configurações</string>
+    <string name="update_backing_up">Copiando seus jogos salvos…</string>
+    <string name="update_downloading">Baixando o Precursor %1$s</string>
+    <string name="update_progress">%1$d de %2$d MB</string>
+    <string name="update_failed">A atualização falhou: %1$s</string>
+    <string name="update_wrong_apk">O arquivo baixado não é uma versão mais nova do Precursor.</string>
+    <string name="backups_title">Backups</string>
+    <string name="backups_create">Fazer uma cópia agora</string>
+    <string name="backups_created">Cópia feita</string>
+    <string name="backups_nothing">Ainda não há jogos salvos nem configurações para copiar.</string>
+    <string name="backups_empty">Nenhuma cópia ainda. O Precursor faz uma automaticamente antes de atualizar, preparar um jogo de novo ou removê-lo.</string>
+    <string name="backup_reason_update">Antes de atualizar</string>
+    <string name="backup_reason_prepare">Antes de preparar um jogo de novo</string>
+    <string name="backup_reason_remove">Antes de remover um jogo</string>
+    <string name="backup_reason_restore">Antes de restaurar uma cópia</string>
+    <string name="backup_reason_manual">Feita por você</string>
+    <string name="restore_title">Restaurar esta cópia?</string>
+    <string name="restore_body">Os jogos salvos e configurações de %1$s vão substituir os atuais. O que você tem agora é copiado antes, então dá para desfazer.</string>
+    <string name="restore">Restaurar</string>
+    <string name="restore_close_game">Feche o jogo antes de restaurar uma cópia.</string>
+    <string name="restored">Cópia restaurada</string>
+
+    <!-- Settings screen -->
+    <string name="tab_language">Idioma</string>
+    <string name="tab_updates">Atualizações</string>
+    <string name="tab_backups">Cópias</string>
+    <string name="tab_log">Registro</string>
+    <string name="tab_about">Sobre</string>
+    <string name="current_version">Você tem a versão %1$s. As atualizações vêm dos releases do Precursor no GitHub.</string>
+    <string name="update_auto_label">Procurar atualizações automaticamente</string>
+    <string name="update_auto_desc">Uma vez por dia, ao abrir o Precursor.</string>
+    <string name="backups_hint">O Precursor copia seus jogos salvos e configurações antes de atualizar, preparar um jogo de novo ou removê-lo. As 5 cópias mais recentes são mantidas.</string>
+    <string name="backups_none">Ainda não há cópias.</string>
+    <string name="log_hint">Mensagens da última preparação de um jogo. Útil ao relatar um problema.</string>
+
+    <!-- In game -->
+    <string name="back_to_precursor">Voltar ao Precursor</string>
+    <string name="quit_game">Sair do jogo</string>
+    <string name="menu_warning">Tudo o que você não salvou no jogo será perdido.</string>
+    <string name="keep_playing">Continuar jogando</string>
+    <string name="loading_engine">Iniciando o motor…</string>
+    <string name="loading_slow">Iniciando o motor… Da primeira vez demora um pouco mais.</string>
+    <string name="touch_description">Controles de toque: dois analógicos, direcional e botões do PlayStation</string>
+    <string name="touch_hide">OCULTAR</string>
+    <string name="touch_show">MOSTRAR</string>
+    <string name="touch_menu">MENU</string>
+    <string name="touch_move">MOVER</string>
+    <string name="touch_camera">CÂMERA</string>
+
+    <!-- Installer -->
+    <string name="channel_installation">Preparação de jogos</string>
+    <string name="notify_preparing">Precursor · Preparando jogo</string>
+    <string name="notify_removing">Precursor · Removendo instalação</string>
+    <string name="install_starting">Iniciando a instalação…</string>
+    <string name="install_cancelled">Instalação cancelada. Você pode escolher a ISO novamente.</string>
+    <string name="install_no_iso">Nenhuma ISO foi recebida</string>
+    <string name="install_busy">Já há uma instalação em andamento</string>
+    <string name="install_pick_game">Escolha o jogo que você quer instalar</string>
+    <string name="install_preparing">Preparando a instalação…</string>
+    <string name="install_tools">Preparando as ferramentas incluídas…</string>
+    <string name="install_tools_invalid">Pacote de ferramentas inválido</string>
+    <string name="install_tools_incomplete">A pasta de ferramentas está incompleta</string>
+    <string name="install_tools_save_failed">Não foi possível salvar as ferramentas</string>
+    <string name="install_checking_iso">Verificando se a ISO é de %1$s…</string>
+    <string name="install_copying">Copiando a ISO…</string>
+    <string name="install_copying_mb">Copiando a ISO · %1$d MB</string>
+    <string name="install_checking_game">Verificando o jogo e a edição da ISO…</string>
+    <string name="install_extracting">Extraindo e verificando a ISO…</string>
+    <string name="install_levels">Preparando fases, texturas e áudio…</string>
+    <string name="install_compiling">Compilando o jogo para o celular…</string>
+    <string name="install_finishing">Finalizando a instalação…</string>
+    <string name="install_saving">Salvando a instalação e liberando a anterior…</string>
+    <string name="install_ready">%1$s está pronto para jogar.</string>
+    <string name="install_space">São necessários cerca de %1$d GB livres para preparar esta ISO</string>
+    <string name="install_iso_invalid">A ISO está incompleta ou não é válida</string>
+    <string name="install_iso_open_failed">Não foi possível abrir a ISO selecionada</string>
+    <string name="install_iso_copy_incomplete">A cópia da ISO está incompleta</string>
+    <string name="install_unknown_game">O instalador não identificou o jogo</string>
+    <string name="install_close_game_install">Feche o jogo antes de instalar.</string>
+    <string name="install_close_game_remove">Feche o jogo antes de remover uma instalação.</string>
+    <string name="install_cannot_check_game">Não foi possível verificar se o jogo está fechado. Tente novamente.</string>
+    <string name="install_invalid_game">Jogo inválido</string>
+    <string name="install_removing">Removendo a instalação de %1$s…</string>
+    <string name="install_removed">%1$s removido. Seus jogos salvos e a ISO original foram mantidos.</string>
+    <string name="install_timeout">O Android interrompeu a instalação porque ela demorou demais. Escolha a ISO novamente.</string>
+    <string name="install_not_ps2_iso">O arquivo escolhido não é uma imagem ISO de PS2.</string>
+    <string name="install_iso_damaged">A ISO está incompleta ou danificada. Copie-a novamente do disco.</string>
+    <string name="install_iso_access">Não foi possível acessar a ISO selecionada</string>
+    <string name="install_iso_read">Não foi possível ler a ISO</string>
+    <string name="install_not_jak">A ISO não contém um jogo Jak reconhecido</string>
+    <string name="install_edition_unsupported">Esta edição da ISO não é compatível</string>
+    <string name="install_verify_failed">A verificação da ISO falhou. Confira o registro</string>
+    <string name="install_assets_failed">Não foi possível preparar os recursos do jogo</string>
+    <string name="install_compile_failed">A compilação do jogo falhou</string>
+    <string name="install_missing_compiled">Faltam arquivos compilados do jogo</string>
+    <string name="install_missing_levels">Faltam as fases do jogo</string>
+
+    <!-- Saves and mods (GameSaves, ModManager through Texts) -->
+    <string name="save_invalid">O arquivo não contém um jogo salvo válido</string>
+    <string name="save_wrong_game">O arquivo não é um jogo salvo válido deste jogo (ou está danificado)</string>
+    <string name="save_backup_failed">Não foi possível fazer backup do jogo salvo atual</string>
+    <string name="save_write_failed">Não foi possível gravar o jogo salvo</string>
+    <string name="mod_no_manifest">O pacote não tem mod.json</string>
+    <string name="mod_wrong_game">Este mod é para %1$s, não para %2$s</string>
+    <string name="mod_bad_id">ID de mod inválido</string>
+    <string name="mod_no_files">O mod não declara nenhum arquivo</string>
+    <string name="mod_disable_first">Desative \"%1$s\" antes de importar uma nova versão</string>
+    <string name="mod_repeats">O mod lista %1$s duas vezes</string>
+    <string name="mod_missing_entry">Falta %1$s no pacote</string>
+    <string name="mod_not_installed">%1$s não está instalado</string>
+    <string name="mod_conflict">\"%1$s\" e \"%2$s\" alteram %3$s. Desative um antes de ativar o outro.</string>
+    <string name="mod_remove_failed">Não foi possível remover %1$s</string>
+    <string name="mod_write_failed">Não foi possível gravar %1$s</string>
+
+    <!-- Nomes das fases de Jak and Daxter (sem lançamento oficial em português) -->
+    <string-array name="jak1_levels">
+        <item>Rocha do Gêiser</item>
+        <item>Vila Sandover</item>
+        <item>Praia Sentinela</item>
+        <item>Selva Proibida</item>
+        <item>Ilha Misty</item>
+        <item>Cânion de Fogo</item>
+        <item>Vila de Pedra</item>
+        <item>Cidade Perdida dos Precursores</item>
+        <item>Pântano Lamacento</item>
+        <item>Bacia Precursora</item>
+        <item>Passagem da Montanha</item>
+        <item>Cratera Vulcânica</item>
+        <item>Montanha Nevada</item>
+        <item>Caverna das Aranhas</item>
+        <item>Tubo de Lava</item>
+        <item>Cidadela de Gol e Maia</item>
+    </string-array>
+</resources>

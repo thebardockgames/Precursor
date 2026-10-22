@@ -1,3 +1,382 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Precursor's text. English is the fallback for phones in a language Precursor does not have.
+     Every language lives in values-<code>/strings.xml with the same names. (AI-assisted) -->
 <resources>
-    <string name="app_name">Precursor</string>
+    <string name="app_name" translatable="false">Precursor</string>
+
+    <!-- Branding -->
+    <string name="brand_tagline">POWERED BY OPENGOAL · UNOFFICIAL</string>
+    <string name="brand_pill">powered by OpenGOAL · unofficial</string>
+    <string name="loading_credit">Precursor · powered by OpenGOAL · unofficial project</string>
+
+    <!-- Common -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="back">Back</string>
+    <string name="choose">Choose</string>
+    <string name="menu">Menu</string>
+    <string name="no_file_picker">No file picker is available.</string>
+    <string name="cannot_open_file">Couldn\'t open the file</string>
+    <string name="cannot_open_destination">Couldn\'t open the destination</string>
+
+    <!-- Gamepad hints -->
+    <string name="hint_start">Start</string>
+    <string name="hint_continue_background">Continue in background</string>
+    <string name="hint_play">Play</string>
+    <string name="hint_add">Add</string>
+    <string name="hint_options">Options</string>
+    <string name="hint_switch_game">Switch game</string>
+    <string name="hint_open">Open</string>
+    <string name="hint_section">Section</string>
+
+    <!-- Guided setup -->
+    <string name="step_of">Step %1$d of 5</string>
+    <string name="welcome_title">Welcome to Precursor</string>
+    <string name="welcome_body">The Jak and Daxter trilogy, native on your phone.</string>
+    <string name="pick_title">Which game do you have?</string>
+    <string name="pick_body">Choose the game on your ISO. You can add the others later.</string>
+    <string name="iso_size">%1$s GB ISO</string>
+    <string name="pick_game">Choose %1$s</string>
+    <string name="iso_title">Find your %1$s ISO</string>
+    <string name="iso_body">Android\'s file picker opens. Your ISO is not modified or uploaded anywhere.</string>
+    <string name="iso_space">You need about %1$s GB free to prepare it; you have %2$s GB.</string>
+    <string name="iso_help">Copy the ISO of your PS2 disc to the phone\'s Downloads folder with a USB cable or from an SD card. NTSC, PAL and NTSC-J editions work. The PS3, PS4 and PS5 versions do not.</string>
+    <string name="iso_choose">Choose my ISO</string>
+    <string name="iso_help_hide">Hide help</string>
+    <string name="iso_help_show">How do I copy the ISO?</string>
+    <string name="check_title">Checking your ISO…</string>
+    <string name="check_body">Reading the disc to confirm it is %1$s and that the edition is supported.</string>
+    <string name="prepare_title">Preparing %1$s</string>
+    <string name="prepare_progress">%1$d%% · This takes several minutes. You can leave: we\'ll let you know when it\'s done.</string>
+    <string name="stage_of">Stage %1$d of %2$d · %3$s</string>
+    <string name="done_title">%1$s is ready!</string>
+    <string name="done_body">Your saves are kept on the phone. You can add the other games from the menu whenever you like.</string>
+    <string name="play_now">▶  Play now</string>
+    <string name="go_to_menu">Go to menu</string>
+    <string name="error_title">Couldn\'t prepare %1$s</string>
+    <string name="error_stopped">The preparation stopped.</string>
+    <string name="choose_another_iso">Choose another ISO</string>
+    <string name="view_log">View log</string>
+    <string name="report">Report</string>
+    <string name="report_prepare_failed">Preparing %1$s failed: %2$s</string>
+    <string name="already_preparing">A game is already being prepared. Wait for it to finish.</string>
+    <string name="already_preparing_short">A game is already being prepared.</string>
+    <string name="cancel_prepare_title">Cancel the preparation?</string>
+    <string name="cancel_prepare_body">What was prepared so far is deleted. Your ISO is not touched.</string>
+    <string name="keep_preparing">Keep preparing</string>
+    <string name="prepare_interrupted">The preparation was interrupted (Android closed the process). Choose the ISO again.</string>
+    <string name="could_not_start">Couldn\'t start: %1$s</string>
+
+    <!-- Installation stages -->
+    <string name="stage_copy">Copying the ISO</string>
+    <string name="stage_extract">Extracting files</string>
+    <string name="stage_levels">Preparing levels and audio</string>
+    <string name="stage_compile">Compiling for your phone</string>
+    <string name="stage_finish">Final touches</string>
+
+    <!-- Shelf -->
+    <string name="your_games">YOUR GAMES</string>
+    <string name="settings">Settings</string>
+    <string name="tile_ready">Ready</string>
+    <string name="tile_add">+ Add</string>
+    <string name="tile_installed">%1$s, installed</string>
+    <string name="tile_not_installed">%1$s, not installed</string>
+    <string name="pill_installed">● Installed</string>
+    <string name="pill_not_installed">○ Not installed</string>
+    <string name="new_game">New game</string>
+    <string name="level_number">Level #%1$d</string>
+    <string name="needs_free">Needs ~%1$s GB free</string>
+    <string name="continue_game">▶  Continue</string>
+    <string name="play">▶  Play</string>
+    <string name="saves_and_options">Saves and options</string>
+    <string name="add_iso">＋  Add %1$s ISO</string>
+
+    <!-- Settings and about -->
+    <string name="settings_about">About Precursor</string>
+    <string name="settings_log">Installation log</string>
+    <string name="settings_welcome">Show the welcome again</string>
+    <string name="settings_language">Language</string>
+    <string name="language_title">Language</string>
+    <string name="language_system">Phone language (%1$s)</string>
+    <string name="language_note">The games\' text and subtitles use this language too. Spoken audio depends on your disc.</string>
+    <string name="about_title">Precursor · powered by OpenGOAL</string>
+    <string name="about_body">Precursor is an unofficial Android port of the Jak and Daxter trilogy, built on OpenGOAL (opengoal.dev). It is not affiliated with the OpenGOAL team, Naughty Dog or Sony: do not report this app\'s problems to OpenGOAL.\n\nYou need the ISO of your own disc. Precursor does not include any game files.\n\nControls: on-screen touch or any compatible controller. In the menu: d-pad to move, A to accept, B to go back, X for options, LB/RB to switch games.\n\nVersion %1$s · %2$s</string>
+    <string name="got_it">Got it</string>
+
+    <!-- Log -->
+    <string name="log_title">Installation log</string>
+    <string name="save_log">Save log</string>
+    <string name="log_saved">Log saved</string>
+    <string name="log_empty">No installer messages yet.</string>
+    <string name="log_missing">There is no installation log yet.</string>
+
+    <!-- Playing -->
+    <string name="unsupported_title">Your phone is not supported</string>
+    <string name="unsupported_body">The game needs OpenGL ES 3.2 and this phone reports OpenGL ES %1$s. It will most likely close when opened.</string>
+    <string name="try_anyway">Try anyway</string>
+    <string name="another_game">Another game</string>
+    <string name="still_open_title">%1$s is still open</string>
+    <string name="still_open_body">To play %1$s, %2$s has to be closed. Anything you haven\'t saved will be lost.</string>
+    <string name="close_and_open">Close and open</string>
+
+    <!-- Crashes and reports -->
+    <string name="crash_title">The game closed unexpectedly</string>
+    <string name="crash_body">%1$s. Do you want to send a report to help fix it? It includes technical logs, not your saves.</string>
+    <string name="not_now">Not now</string>
+    <string name="send_report">Send report</string>
+    <string name="report_hint">What were you doing? (level, what happened…)</string>
+    <string name="report_title">Report a problem</string>
+    <string name="report_body">A .zip file will be created with information about the phone and logs from the launcher and the game. It does not include your saves or the ISO. Then choose where to send it (Discord, email…).</string>
+    <string name="create_and_share">Create and share</string>
+    <string name="preparing_report">Preparing the report…</string>
+    <string name="report_subject">Precursor report %1$s</string>
+    <string name="report_failed">Couldn\'t create the report: %1$s</string>
+    <string name="exit_crashed">%1$s closed because of an error</string>
+    <string name="exit_anr">%1$s stopped responding</string>
+    <string name="exit_low_memory">%1$s closed because it ran out of memory</string>
+    <string name="exit_error">%1$s closed with an error</string>
+
+    <!-- Game options -->
+    <string name="options_caps">OPTIONS</string>
+    <string name="tab_saves">Saves</string>
+    <string name="tab_mods">Mods</string>
+    <string name="tab_controls">Controls</string>
+    <string name="tab_remove">Remove</string>
+    <string name="section">Section %1$s</string>
+    <string name="saves_title">Saved games</string>
+    <string name="saves_hint">Close the game before replacing or importing a save.</string>
+    <string name="slot_empty">empty</string>
+    <string name="slot_title">Slot %1$d · %2$s</string>
+    <string name="export">Export</string>
+    <string name="replace">Replace</string>
+    <string name="no_saved_data">No saved data.</string>
+    <string name="import_save">Import save</string>
+    <string name="replace_title">Replace slot %1$d?</string>
+    <string name="replace_body">This save will be overwritten with the file you choose. Export it first if you want to keep it.</string>
+    <string name="choose_file">Choose file</string>
+    <string name="save_exported">Save exported</string>
+    <string name="export_failed">Couldn\'t export: %1$s</string>
+    <string name="invalid_save_for">The file doesn\'t contain a valid %1$s save</string>
+    <string name="save_imported">Save imported</string>
+    <string name="import_failed">Couldn\'t import: %1$s</string>
+    <string name="mods_hint">Close the game before enabling or disabling a mod.</string>
+    <string name="import_mod">＋  Import a mod (.zip)</string>
+    <string name="no_mods">No mods imported yet.</string>
+    <string name="enable">Enable</string>
+    <string name="disable">Disable</string>
+    <string name="delete">Delete</string>
+    <string name="mod_state_enabled">● Enabled</string>
+    <string name="mod_state_disabled">○ Disabled</string>
+    <string name="mod_now_enabled">%1$s enabled</string>
+    <string name="mod_now_disabled">%1$s disabled</string>
+    <string name="mod_imported">%1$s imported</string>
+    <string name="apply_failed">Couldn\'t apply: %1$s</string>
+    <string name="delete_mod_title">Delete %1$s?</string>
+    <string name="delete_mod_enabled_body">It will be disabled and the imported package will be deleted.</string>
+    <string name="delete_mod_body">The imported package will be deleted.</string>
+    <string name="delete_failed">Couldn\'t delete: %1$s</string>
+    <string name="controls_title">Touch controls</string>
+    <string name="controls_hint">The game\'s on-screen buttons. Any compatible controller always works.</string>
+    <string name="touch_auto">Automatic</string>
+    <string name="touch_auto_desc">Hidden while a controller is connected, back when it is disconnected.</string>
+    <string name="touch_always">Always visible</string>
+    <string name="touch_always_desc">Useful if you switch between controller and screen.</string>
+    <string name="touch_never">Hidden</string>
+    <string name="touch_never_desc">Controller only. You can show them in the game with the SHOW button at the top.</string>
+    <string name="remove_title">Remove installation</string>
+    <string name="remove_hint">Frees the space used by %1$s. Your saves and the original ISO are kept; to play again you will have to add the ISO again.</string>
+    <string name="remove_button">Remove %1$s</string>
+    <string name="remove_confirm_title">Remove %1$s?</string>
+    <string name="remove_confirm_body">The installed files will be deleted. Your saves and the original ISO are kept.</string>
+    <string name="remove">Remove</string>
+    <string name="wait_for_preparation">Wait for the current preparation to finish.</string>
+    <string name="removing_game">Removing %1$s…</string>
+
+    <!-- Graphics (game options) -->
+    <string name="tab_graphics">Graphics</string>
+    <string name="graphics_hint">Applied the next time the game starts. The game\'s own menu (Options › Graphics) has more settings, like shadows and level of detail.</string>
+    <string name="render_scale_title">Internal resolution</string>
+    <string name="render_scale_desc">Lower values run faster and keep the phone cooler; the image gets a little softer.</string>
+    <string name="render_scale_option">%1$d%% · %2$d × %3$d</string>
+    <string name="render_scale_native">%1$d%% · %2$d × %3$d (native)</string>
+    <string name="other_title">Other</string>
+    <string name="show_fps">FPS counter</string>
+    <string name="show_fps_desc">Frames per second and frame time at the top of the screen.</string>
+    <string name="sustained">Stable performance</string>
+    <string name="sustained_desc">Asks Android for steady speed instead of short bursts, so the game slows down less when the phone heats up. Top speed may be a little lower.</string>
+    <string name="sustained_unsupported">Your phone does not offer Android\'s stable performance mode.</string>
+
+    <!-- Updates and backups -->
+    <string name="settings_updates">Updates</string>
+    <string name="settings_backups">Backups of saves and settings</string>
+    <string name="prepare_again_keeps">Your saves and settings are kept: preparing again only replaces the game files.</string>
+    <string name="stale_required_pill">⚠ Prepare again to play</string>
+    <string name="stale_recommended_pill">↻ Improvements available: prepare again</string>
+    <string name="prepare_again">↻  Prepare again</string>
+    <string name="prepare_again_title">Prepare %1$s again</string>
+    <string name="stale_required_body">This version of Precursor changed how games are built. %1$s was prepared with an older version and may crash or not start. Choose your ISO again to prepare it.</string>
+    <string name="stale_recommended_body">This version of Precursor brings fixes for %1$s that only apply after preparing it again from your ISO. You can keep playing as it is until then.</string>
+    <string name="data_is_kept">Your saves and settings are not touched, and a backup copy is made automatically.</string>
+    <string name="play_anyway">Play anyway</string>
+    <string name="updated_title">Precursor was updated to %1$s</string>
+    <string name="updated_required">This version changed how games are built. Prepare these again from your ISO: %1$s. Until then they may crash.</string>
+    <string name="updated_recommended">This version brings fixes for %1$s. To get them, prepare the game again from your ISO; you can keep playing meanwhile.</string>
+    <string name="updated_nothing">Your games are ready to play as they are.</string>
+    <string name="updates_title">Updates · version %1$s</string>
+    <string name="update_check_now">Check for updates now</string>
+    <string name="update_channel">Channel: %1$s</string>
+    <string name="update_channel_stable">Stable</string>
+    <string name="update_channel_alpha">Alpha</string>
+    <string name="update_auto">Check automatically: %1$s</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="update_channel_title">Update channel</string>
+    <string name="update_stable_desc">tested versions</string>
+    <string name="update_alpha_desc">early versions with the newest changes; they may have bugs</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_none">You have the latest version (%1$s).</string>
+    <string name="update_offline">Couldn\'t reach GitHub. Check your internet connection.</string>
+    <string name="update_check_failed">Couldn\'t check for updates: %1$s</string>
+    <string name="update_available">Precursor %1$s is available</string>
+    <string name="update_available_alpha">Precursor %1$s (alpha) is available</string>
+    <string name="update_keeps_data">Updating keeps your games, saves and settings, and a backup copy of your saves is made first. If this version needs a game to be prepared again, Precursor will tell you after updating.</string>
+    <string name="update_now">Update</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_close_game">Close the game before updating.</string>
+    <string name="update_permission_title">Allow Precursor to install updates</string>
+    <string name="update_permission_body">Android asks once for permission to install updates from Precursor. Turn on the switch for this source (your phone may also show a warning to accept) and come back: the update continues by itself.</string>
+    <string name="update_open_settings">Open settings</string>
+    <string name="update_backing_up">Backing up your saves…</string>
+    <string name="update_downloading">Downloading Precursor %1$s</string>
+    <string name="update_progress">%1$d of %2$d MB</string>
+    <string name="update_failed">The update failed: %1$s</string>
+    <string name="update_wrong_apk">The downloaded file is not a newer version of Precursor.</string>
+    <string name="backups_title">Backups</string>
+    <string name="backups_create">Make a copy now</string>
+    <string name="backups_created">Copy made</string>
+    <string name="backups_nothing">There are no saves or settings to copy yet.</string>
+    <string name="backups_empty">No copies yet. Precursor makes one automatically before updating, preparing a game again or removing one.</string>
+    <string name="backup_reason_update">Before updating</string>
+    <string name="backup_reason_prepare">Before preparing a game again</string>
+    <string name="backup_reason_remove">Before removing a game</string>
+    <string name="backup_reason_restore">Before restoring a copy</string>
+    <string name="backup_reason_manual">Made by you</string>
+    <string name="restore_title">Restore this copy?</string>
+    <string name="restore_body">The saves and settings from %1$s will replace the current ones. What you have now is copied first, so this can be undone.</string>
+    <string name="restore">Restore</string>
+    <string name="restore_close_game">Close the game before restoring a copy.</string>
+    <string name="restored">Copy restored</string>
+
+    <!-- Settings screen -->
+    <string name="tab_language">Language</string>
+    <string name="tab_updates">Updates</string>
+    <string name="tab_backups">Backups</string>
+    <string name="tab_log">Log</string>
+    <string name="tab_about">About</string>
+    <string name="current_version">You have version %1$s. Updates come from Precursor\'s releases on GitHub.</string>
+    <string name="update_auto_label">Check for updates automatically</string>
+    <string name="update_auto_desc">Once a day, when you open Precursor.</string>
+    <string name="backups_hint">Precursor copies your saves and settings before updating, preparing a game again or removing one. The newest 5 copies are kept.</string>
+    <string name="backups_none">No copies yet.</string>
+    <string name="log_hint">Messages from the last game preparation. Useful when reporting a problem.</string>
+
+    <!-- In game -->
+    <string name="back_to_precursor">Back to Precursor</string>
+    <string name="quit_game">Quit game</string>
+    <string name="menu_warning">Anything you haven\'t saved in the game will be lost.</string>
+    <string name="keep_playing">Keep playing</string>
+    <string name="loading_engine">Starting the engine…</string>
+    <string name="loading_slow">Starting the engine… The first time takes a bit longer.</string>
+    <string name="touch_description">Touch controls: two sticks, d-pad and PlayStation buttons</string>
+    <string name="touch_hide">HIDE</string>
+    <string name="touch_show">SHOW</string>
+    <string name="touch_menu">MENU</string>
+    <string name="touch_move">MOVE</string>
+    <string name="touch_camera">CAMERA</string>
+
+    <!-- Installer -->
+    <string name="channel_installation">Game preparation</string>
+    <string name="notify_preparing">Precursor · Preparing game</string>
+    <string name="notify_removing">Precursor · Removing installation</string>
+    <string name="install_starting">Starting installation…</string>
+    <string name="install_cancelled">Installation cancelled. You can choose the ISO again.</string>
+    <string name="install_no_iso">No ISO was received</string>
+    <string name="install_busy">An installation is already in progress</string>
+    <string name="install_pick_game">Choose the game you want to install</string>
+    <string name="install_preparing">Preparing the installation…</string>
+    <string name="install_tools">Preparing the included tools…</string>
+    <string name="install_tools_invalid">Invalid tools package</string>
+    <string name="install_tools_incomplete">The tools folder is incomplete</string>
+    <string name="install_tools_save_failed">Couldn\'t save the tools</string>
+    <string name="install_checking_iso">Checking that the ISO is %1$s…</string>
+    <string name="install_copying">Copying the ISO…</string>
+    <string name="install_copying_mb">Copying the ISO · %1$d MB</string>
+    <string name="install_checking_game">Checking the game and the ISO edition…</string>
+    <string name="install_extracting">Extracting and verifying the ISO…</string>
+    <string name="install_levels">Preparing levels, textures and audio…</string>
+    <string name="install_compiling">Compiling the game for the phone…</string>
+    <string name="install_finishing">Finishing installation…</string>
+    <string name="install_saving">Saving the installation and freeing the previous one…</string>
+    <string name="install_ready">%1$s is ready to play.</string>
+    <string name="install_space">About %1$d GB free is needed to prepare this ISO</string>
+    <string name="install_iso_invalid">The ISO is incomplete or not valid</string>
+    <string name="install_iso_open_failed">Couldn\'t open the selected ISO</string>
+    <string name="install_iso_copy_incomplete">The ISO copy is incomplete</string>
+    <string name="install_unknown_game">The installer did not identify the game</string>
+    <string name="install_close_game_install">Close the game before installing.</string>
+    <string name="install_close_game_remove">Close the game before removing an installation.</string>
+    <string name="install_cannot_check_game">Couldn\'t check whether the game is closed. Try again.</string>
+    <string name="install_invalid_game">Invalid game</string>
+    <string name="install_removing">Removing the %1$s installation…</string>
+    <string name="install_removed">%1$s removed. Your saves and the original ISO were kept.</string>
+    <string name="install_timeout">Android stopped the installation because it took too long. Choose the ISO again.</string>
+    <string name="install_not_ps2_iso">The chosen file is not a PS2 ISO image.</string>
+    <string name="install_iso_damaged">The ISO is incomplete or damaged. Copy it again from the disc.</string>
+    <string name="install_iso_access">Couldn\'t access the selected ISO</string>
+    <string name="install_iso_read">Couldn\'t read the ISO</string>
+    <string name="install_not_jak">The ISO does not contain a recognized Jak game</string>
+    <string name="install_edition_unsupported">This edition of the ISO is not supported</string>
+    <string name="install_verify_failed">The ISO verification failed. Check the log</string>
+    <string name="install_assets_failed">Couldn\'t prepare the game\'s resources</string>
+    <string name="install_compile_failed">Compiling the game failed</string>
+    <string name="install_missing_compiled">Compiled game files are missing</string>
+    <string name="install_missing_levels">The game\'s levels are missing</string>
+
+    <!-- Saves and mods (GameSaves, ModManager through Texts) -->
+    <string name="save_invalid">The file doesn\'t contain a valid save</string>
+    <string name="save_wrong_game">The file is not a valid save of this game (or it is damaged)</string>
+    <string name="save_backup_failed">Couldn\'t back up the current save</string>
+    <string name="save_write_failed">Couldn\'t write the save</string>
+    <string name="mod_no_manifest">The package has no mod.json</string>
+    <string name="mod_wrong_game">This mod is for %1$s, not for %2$s</string>
+    <string name="mod_bad_id">Invalid mod id</string>
+    <string name="mod_no_files">The mod does not declare any files</string>
+    <string name="mod_disable_first">Disable \"%1$s\" before importing a new version</string>
+    <string name="mod_repeats">The mod lists %1$s twice</string>
+    <string name="mod_missing_entry">The package is missing %1$s</string>
+    <string name="mod_not_installed">%1$s is not installed</string>
+    <string name="mod_conflict">\"%1$s\" and \"%2$s\" both change %3$s. Disable one before enabling the other.</string>
+    <string name="mod_remove_failed">Couldn\'t remove %1$s</string>
+    <string name="mod_write_failed">Couldn\'t write %1$s</string>
+
+    <!-- Jak and Daxter level names, as the game names them -->
+    <string-array name="jak1_levels">
+        <item>Geyser Rock</item>
+        <item>Sandover Village</item>
+        <item>Sentinel Beach</item>
+        <item>Forbidden Jungle</item>
+        <item>Misty Island</item>
+        <item>Fire Canyon</item>
+        <item>Rock Village</item>
+        <item>Lost Precursor City</item>
+        <item>Boggy Swamp</item>
+        <item>Precursor Basin</item>
+        <item>Mountain Pass</item>
+        <item>Volcanic Crater</item>
+        <item>Snowy Mountain</item>
+        <item>Spider Cave</item>
+        <item>Lava Tube</item>
+        <item>Gol and Maia\'s Citadel</item>
+    </string-array>
 </resources>

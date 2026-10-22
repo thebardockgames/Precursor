@@ -104,20 +104,20 @@ final class ModManager {
         try {
             InstallFiles.unzip(zipStream, tempDir);
             File manifestFile = new File(tempDir, "mod.json");
-            if (!manifestFile.isFile()) throw new IOException("El paquete no trae mod.json");
+            if (!manifestFile.isFile()) throw new IOException(Texts.get("mod_no_manifest"));
             JSONObject manifest = LauncherStore.read(manifestFile);
             String modGame = manifest.optString("game");
             if (!modGame.equals(game))
-                throw new IOException("Este mod es para " + InstallService.title(modGame) + ", no para " + InstallService.title(game));
+                throw new IOException(Texts.get("mod_wrong_game", InstallService.title(modGame), InstallService.title(game)));
             String id = manifest.getString("id");
             if (!id.matches("[a-z0-9][a-z0-9-]{1,63}"))
-                throw new IOException("Id de mod no válido");
+                throw new IOException(Texts.get("mod_bad_id"));
             Mod mod = readMod(tempDir, false);
-            if (mod.paths.isEmpty()) throw new IOException("El mod no declara archivos");
+            if (mod.paths.isEmpty()) throw new IOException(Texts.get("mod_no_files"));
 
             JSONObject state = readState(context, game);
             if (enabledMap(state).optBoolean(id, false))
-                throw new IOException("Desactiva \"" + mod.name + "\" antes de importar una versión nueva");
+                throw new IOException(Texts.get("mod_disable_first", mod.name));
 
             File dest = new File(packagesDir(context, game), id);
             InstallFiles.mkdir(dest.getParentFile());
@@ -141,9 +141,9 @@ final class ModManager {
             for (int i = 0; i < files.length(); i++) {
                 JSONObject entry = files.getJSONObject(i);
                 String path = entry.getString("path");
-                if (paths.contains(path)) throw new IOException("El mod repite " + path);
+                if (paths.contains(path)) throw new IOException(Texts.get("mod_repeats", path));
                 if (!InstallFiles.child(packageDir, entry.getString("entry")).isFile())
-                    throw new IOException("Al paquete le falta " + entry.getString("entry"));
+                    throw new IOException(Texts.get("mod_missing_entry", entry.getString("entry")));
                 paths.add(path);
             }
         }
@@ -174,7 +174,7 @@ final class ModManager {
      */
     static void setEnabled(Context context, String game, String modId, boolean enabled) throws IOException, org.json.JSONException {
         File installDir = activeInstallDir(context, game);
-        if (installDir == null) throw new IOException(InstallService.title(game) + " no está instalado");
+        if (installDir == null) throw new IOException(Texts.get("mod_not_installed", InstallService.title(game)));
         JSONObject state = readState(context, game);
         JSONObject enabledMods = enabledMap(state);
         if (enabledMods.optBoolean(modId, false) == enabled) return;
@@ -189,8 +189,7 @@ final class ModManager {
                 if (!other.enabled || other.id.equals(modId)) continue;
                 for (String path : mod.paths) {
                     if (other.paths.contains(path))
-                        throw new IOException("\"" + mod.name + "\" y \"" + other.name + "\" modifican " + path
-                                + ". Desactiva uno antes de activar el otro.");
+                        throw new IOException(Texts.get("mod_conflict", mod.name, other.name, path));
                 }
             }
         }
@@ -217,7 +216,7 @@ final class ModManager {
                     copyFile(backup, live);
                     backup.delete();
                 } else if (absent.isFile()) {
-                    if (live.exists() && !live.delete()) throw new IOException("No se pudo quitar " + relPath);
+                    if (live.exists() && !live.delete()) throw new IOException(Texts.get("mod_remove_failed", relPath));
                     absent.delete();
                 }
             }
@@ -257,7 +256,7 @@ final class ModManager {
         }
         if (!temp.renameTo(dst)) {
             dst.delete();
-            if (!temp.renameTo(dst)) { temp.delete(); throw new IOException("No se pudo escribir " + dst.getName()); }
+            if (!temp.renameTo(dst)) { temp.delete(); throw new IOException(Texts.get("mod_write_failed", dst.getName())); }
         }
     }
 }

@@ -22,6 +22,7 @@ SDL_Joystick* touch_joystick = nullptr;
 SDL_JoystickID touch_id = 0;
 std::atomic<uint64_t> presented_frames{0};
 std::atomic<uint64_t> game_frames{0};
+std::atomic<int> render_scale{100};
 constexpr uint32_t kLeftTrigger = 1u << 15;
 constexpr uint32_t kRightTrigger = 1u << 16;
 constexpr int kButtonCount = SDL_GAMEPAD_BUTTON_DPAD_RIGHT + 1;
@@ -107,7 +108,17 @@ void shutdown() {
   stick_axes.fill(0.f);
   pressed_buttons = 0;
 }
+
+int render_scale_percent() {
+  return render_scale.load(std::memory_order_relaxed);
+}
 }  // namespace android_touch_controls
+
+// Set by Jak1Activity from the game's Graphics options before the game starts. (AI-assisted)
+extern "C" JNIEXPORT void JNICALL
+Java_com_opengoalandroid_jak1_Jak1Activity_nativeSetRenderScale(JNIEnv*, jclass, jint percent) {
+  render_scale.store(std::clamp(static_cast<int>(percent), 25, 100), std::memory_order_relaxed);
+}
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_opengoalandroid_jak1_TouchControlsView_nativeGetFrameCount(JNIEnv*, jclass) {

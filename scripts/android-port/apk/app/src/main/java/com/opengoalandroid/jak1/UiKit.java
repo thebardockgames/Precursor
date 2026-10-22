@@ -15,6 +15,13 @@ final class UiKit {
     static final int BACKGROUND = 0xff101820, PANEL = 0xff1b2833;
     static final int TEXT = 0xfff1f5ee, MUTED = 0xffa9b8c4, ACCENT = 0xff4ee878;
 
+    /** A save's level in Precursor's language: "Sandover Village", "Level #12" or "New game". (AI-assisted) */
+    static String levelName(android.content.Context context, String game, int levelIndex) {
+        int level = GameSaves.jak1Level(game, levelIndex);
+        if (level >= 0) return context.getResources().getStringArray(R.array.jak1_levels)[level];
+        return levelIndex > 0 ? context.getString(R.string.level_number, levelIndex) : context.getString(R.string.new_game);
+    }
+
     /**
      * Full screen like the game: the status and navigation bars are hidden (a swipe from the edge
      * shows them for a moment) and the screen reaches into the camera cutout, while the content is

@@ -1,5 +1,6 @@
 #include "kmachine.h"
 
+#include <algorithm>
 #include <random>
 
 #include "common/global_profiler/GlobalProfiler.h"
@@ -24,6 +25,9 @@
 #include "game/sce/libpad.h"
 #include "game/sce/libscf.h"
 #include "game/sce/sif_ee.h"
+#ifdef __ANDROID__
+#include "game/system/hid/android_touch_controls.h"
+#endif
 
 /*!
  * Where does OVERLORD load its data from?
@@ -982,6 +986,16 @@ void pc_set_frame_rate(int rate) {
 }
 
 void pc_set_game_resolution(int w, int h) {
+#ifdef __ANDROID__
+  // Phones only offer their native resolution, so Precursor's launcher scales the internal one
+  // down for speed; the final image is still stretched to the whole screen. Even sizes keep the
+  // half-resolution passes exact. (AI-assisted)
+  const int scale = android_touch_controls::render_scale_percent();
+  if (scale < 100) {
+    w = std::max(2, (w * scale / 100) & ~1);
+    h = std::max(2, (h * scale / 100) & ~1);
+  }
+#endif
   Gfx::g_global_settings.game_res_w = w;
   Gfx::g_global_settings.game_res_h = h;
 }

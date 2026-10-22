@@ -6,6 +6,8 @@ import org.json.JSONObject;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.channels.*;
+import java.util.HashSet;
+import java.util.Set;
 
 /** Atomic manifests survive activity recreation and failed installations. (AI-assisted) */
 final class LauncherStore {
@@ -92,7 +94,7 @@ final class LauncherStore {
      * directory. The manifest write is the commit point; a failure before it leaves the previous
      * installation playable. (AI-assisted)
      */
-    static File publishInstallation(Context context, String game, File prepared, String tools) throws Exception {
+    static File publishInstallation(Context context, String game, File prepared, String tools, int dataVersion) throws Exception {
         if (!InstallFiles.validGame(game)) throw new IOException("Juego no válido");
         File library = new File(context.getFilesDir(), "library");
         InstallFiles.mkdir(library);
@@ -103,7 +105,7 @@ final class LauncherStore {
         String previous = read(manifestFile).optString("directory");
         write(manifestFile, new JSONObject()
                 .put("game", game).put("arch", "arm64").put("directory", directory)
-                .put("tools", tools).put("installed", System.currentTimeMillis()));
+                .put("tools", tools).put("dataVersion", dataVersion).put("installed", System.currentTimeMillis()));
         ModManager.resetForGame(context, game);
         if (!previous.isEmpty() && !previous.equals(directory)) {
             try { InstallFiles.removeGameInstallation(library, game, previous); }
@@ -122,6 +124,48 @@ final class LauncherStore {
         InstallFiles.removeGameInstallation(library, game, manifest.getString("directory"));
         new AtomicFile(manifestFile).delete();
         ModManager.resetForGame(context, game);
+    }
+
+    static final int CURRENT = 0, OUTDATED = 1, INCOMPATIBLE = 2;
+
+    /**
+     * Whether a game's installation matches this app version. INCOMPATIBLE: it was compiled for an
+     * older GAME_DATA_VERSION (bumped in build.gradle when the compiler or runtime changes how the
+     * game must be built) and may crash. OUTDATED: the bundled game code changed (different
+     * toolchain hash); it still runs, but without this version's fixes. Installations made before
+     * the data version existed count as version 1. (AI-assisted)
+     */
+    static int staleness(Context context, String game, String tools, int dataVersion) {
+        JSONObject manifest = read(new File(new File(context.getFilesDir(), "library"), game + ".json"));
+        if (manifest.optInt("dataVersion", 1) != dataVersion) return INCOMPATIBLE;
+        return tools != null && !tools.isEmpty() && !tools.equals(manifest.optString("tools")) ? OUTDATED : CURRENT;
+    }
+
+    /**
+     * Each app version unpacks its own tools (a few hundred MB). Once no installation uses an older
+     * set, it is deleted. Runs under the install lock, so a preparation in progress keeps its own.
+     * (AI-assisted)
+     */
+    static void discardUnusedTools(Context context, String currentTools) {
+        File tools = new File(context.getFilesDir(), "tools");
+        File[] sets = tools.listFiles(File::isDirectory);
+        if (sets == null) return;
+        Set<String> used = new HashSet<>();
+        used.add(currentTools);
+        for (String game : new String[]{"jak1", "jak2", "jak3"})
+            used.add(read(new File(new File(context.getFilesDir(), "library"), game + ".json")).optString("tools"));
+        try (RandomAccessFile file = new RandomAccessFile(new File(context.getFilesDir(), "install.lock"), "rw");
+             FileChannel channel = file.getChannel();
+             FileLock lock = channel.tryLock()) {
+            if (lock == null) return;
+            for (File set : sets) {
+                if (!used.contains(set.getName())) {
+                    try { InstallFiles.removeTree(tools, set); } catch (IOException ignored) { }
+                }
+            }
+        } catch (IOException | OverlappingFileLockException busy) {
+            // Try again on a later start.
+        }
     }
 
     static File installed(Context context, String game) {

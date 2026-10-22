@@ -43,6 +43,7 @@ public class Jak1Activity extends SDLActivity {
     private static native void nativeSetAudioActive(boolean active);
     private static native void nativeFlushLog();
     private static native long nativeGetGameFrameCount();
+    private static native void nativeSetRenderScale(int percent);
 
     @Override
     protected boolean sendCommand(int command, Object data) {
@@ -65,6 +66,12 @@ public class Jak1Activity extends SDLActivity {
         }
     }
 
+    /** Precursor's language, also for this separate game process. (AI-assisted) */
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Language.wrap(base));
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         if (BuildConfig.OPENGOAL_LAUNCHER) {
@@ -79,6 +86,8 @@ public class Jak1Activity extends SDLActivity {
             }
         }
         if (BuildConfig.OPENGOAL_LAUNCHER) writeSession();
+        // Before the game reads its settings: its text follows the launcher's language.
+        Language.applyToGame(this, BuildConfig.OPENGOAL_LAUNCHER ? selectedGame : BuildConfig.OPENGOAL_GAME, configDir());
         super.onCreate(savedInstanceState);
         // SDL has loaded libmain before creating mLayout. (AI-assisted)
         if (mLayout != null) {
@@ -88,12 +97,13 @@ public class Jak1Activity extends SDLActivity {
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             nativeSetAudioActive(false);
             applyTouchMode();
+            applyGraphics();
             String name = BuildConfig.OPENGOAL_LAUNCHER ? InstallService.title(selectedGame) : getTitle().toString();
             // Loading screen until the game draws real frames, then the menu above everything.
             mLayout.addView(new LoadingView(this, name, Jak1Activity::gameFrames), new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             gameMenu = new GameMenuView(this, name,
-                    BuildConfig.OPENGOAL_LAUNCHER ? "Volver a Precursor" : "Salir del juego",
+                    getString(BuildConfig.OPENGOAL_LAUNCHER ? R.string.back_to_precursor : R.string.quit_game),
                     () -> { if (BuildConfig.OPENGOAL_LAUNCHER) returnToLauncher(); else finish(); },
                     shown -> {
                         if (touchControls != null) touchControls.releaseAll();
@@ -135,6 +145,16 @@ public class Jak1Activity extends SDLActivity {
 
     private android.hardware.input.InputManager.InputDeviceListener padListener;
 
+    /** The launcher's Graphics options for this game. (AI-assisted) */
+    private void applyGraphics() {
+        String game = BuildConfig.OPENGOAL_LAUNCHER ? selectedGame : BuildConfig.OPENGOAL_GAME;
+        nativeSetRenderScale(GameOptionsActivity.renderScale(this, game));
+        touchControls.setShowFps(GameOptionsActivity.showFps(this, game));
+        if (GameOptionsActivity.sustainedPerformance(this, game)
+                && getSystemService(android.os.PowerManager.class).isSustainedPerformanceModeSupported())
+            getWindow().setSustainedPerformanceMode(true);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -163,17 +183,17 @@ public class Jak1Activity extends SDLActivity {
 
     @Override
     public void setOrientationBis(int width, int height, boolean resizable, String hint) {
-        // Keep SDL window creation/resizing from overriding the manifest's landscape lock.
-        // This changes only the game, not the phone's rotation setting. (AI-assisted)
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        // Keep SDL window creation/resizing from overriding the manifest's landscape lock. Either
+        // landscape side, following the sensor, so the phone can be turned around. This changes
+        // only the game, not the phone's rotation setting. (AI-assisted)
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
     }
 
     @Override
     protected String[] getArguments() {
         String game = BuildConfig.OPENGOAL_LAUNCHER ? selectedGame : BuildConfig.OPENGOAL_GAME;
         File dataDirFile = BuildConfig.OPENGOAL_LAUNCHER ? selectedData : new File(getFilesDir(), "data");
-        File configDirFile = new File(getFilesDir(), BuildConfig.OPENGOAL_LAUNCHER
-                ? "config/" + game : "config");
+        File configDirFile = configDir();
         dataDirFile.mkdirs();
         configDirFile.mkdirs();
         String dataDir = dataDirFile.getAbsolutePath();
@@ -187,6 +207,10 @@ public class Jak1Activity extends SDLActivity {
         String configDir = configDirFile.getAbsolutePath();
         return new String[]{"-g", game,
                 "--proj-path", dataDir, "--config-path", configDir};
+    }
+
+    private File configDir() {
+        return new File(getFilesDir(), BuildConfig.OPENGOAL_LAUNCHER ? "config/" + selectedGame : "config");
     }
 
     private GameMenuView gameMenu;
@@ -214,6 +238,14 @@ public class Jak1Activity extends SDLActivity {
     public boolean dispatchKeyEvent(android.view.KeyEvent event) {
         if (gameMenu != null && gameMenu.isOpen()) return gameMenu.handleKey(event);
         int code = event.getKeyCode();
+        // Android's Back button and back gesture arrive as KEYCODE_BACK, which SDL would hand to
+        // the game (it never reaches onBackPressed). They open the game menu instead. A gamepad
+        // sending BACK keeps reaching the game as one of its buttons. (AI-assisted)
+        if (code == android.view.KeyEvent.KEYCODE_BACK && !event.isFromSource(android.view.InputDevice.SOURCE_GAMEPAD)
+                && !event.isFromSource(android.view.InputDevice.SOURCE_JOYSTICK)) {
+            if (event.getAction() == android.view.KeyEvent.ACTION_UP && !event.isCanceled()) showGameMenu();
+            return true;
+        }
         if (code == android.view.KeyEvent.KEYCODE_BUTTON_SELECT || code == android.view.KeyEvent.KEYCODE_BUTTON_START) {
             boolean down = event.getAction() == android.view.KeyEvent.ACTION_DOWN;
             if (code == android.view.KeyEvent.KEYCODE_BUTTON_SELECT) selectDown = down; else startDown = down;

@@ -30,6 +30,27 @@ def gitCommit = gitOutput(['git', 'rev-parse', '--short=12', 'HEAD']) ?: 'unknow
 if (!gitOutput(['git', 'status', '--porcelain', '--untracked-files=no']).isEmpty()) gitCommit += '-dirty'
 def buildTime = new Date().format("yyyy-MM-dd HH:mm", TimeZone.getTimeZone('UTC')) + ' UTC'
 
+// Precursor's version. versionCode follows from it with the same rules as Versions.code() in the
+// app, so the updater and Android agree on the order: alpha.N < beta.N < rc.N < the release.
+// (AI-assisted)
+// -PprecursorVersion=... overrides it for test builds (e.g. trying the updater).
+def precursorVersion = providers.gradleProperty('precursorVersion').getOrElse('0.2.0-beta')
+def precursorVersionCode = { String version ->
+    def m = version =~ /^(\d{1,2})\.(\d{1,2})\.(\d{1,2})(?:-(alpha|beta|rc)(?:\.(\d{1,2}))?)?$/
+    if (!m.matches()) throw new GradleException("Version must look like 1.2.3, 1.2.3-alpha.4, -beta or -rc: " + version)
+    def stage = m.group(4) == null ? 99 : [alpha: 20, beta: 40, rc: 60][m.group(4)] + (m.group(5) ?: '0').toInteger()
+    if (stage > 99 || (m.group(4) != null && (m.group(5) ?: '0').toInteger() > 19))
+        throw new GradleException("Pre-release number must be 0-19: " + version)
+    return ((m.group(1).toInteger() * 100 + m.group(2).toInteger()) * 100 + m.group(3).toInteger()) * 100 + stage
+}
+// Raise by one when a change to the compiler (goalc in the installer) or to the runtime makes games
+// prepared by an older version unsafe to run. Players are then asked to prepare their ISO again;
+// their saves and settings are kept. Changes to the game code alone (goal_src, assets) do not need
+// it: the launcher notices those by itself and only recommends preparing again. (AI-assisted)
+def gameDataVersion = 1
+// GitHub repository the in-app updater reads releases from.
+def updateRepo = 'thebardockgames/Precursor'
+
 // Precursor's own signing key lives outside the repository (default
 // ~/.precursor/release-signing.properties: storeFile, storePassword, keyAlias, keyPassword).
 // When present it signs both debug and release builds, so a phone never has to uninstall (and
@@ -62,14 +83,16 @@ android {
         buildConfigField 'boolean', 'OPENGOAL_LAUNCHER', launcherBuild.toString()
         buildConfigField 'String', 'GIT_COMMIT', '"' + gitCommit + '"'
         buildConfigField 'String', 'BUILD_TIME', '"' + buildTime + '"'
+        buildConfigField 'int', 'GAME_DATA_VERSION', gameDataVersion.toString()
+        buildConfigField 'String', 'UPDATE_REPO', '"' + updateRepo + '"'
         manifestPlaceholders = [gameLabel: gameLabels[openGoalGame]]
         // android-28, not the template's default android-21: cubeb_aaudio.cpp calls
         // AAudioStreamBuilder_setInputPreset/setUsage, both __INTRODUCED_IN(28) - same reasoning
         // as scripts/android-port/cmake-poc's ANDROID_PLATFORM choice.
         minSdkVersion 28
         targetSdkVersion 35
-        versionCode 1
-        versionName "0.1.0-beta"
+        versionCode precursorVersionCode(precursorVersion)
+        versionName precursorVersion
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_PLATFORM=android-28", "-DANDROID_STL=c++_static"

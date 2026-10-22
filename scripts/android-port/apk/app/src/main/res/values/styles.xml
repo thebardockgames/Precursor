@@ -6,10 +6,38 @@
 </style>
     <style name="LauncherTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#C4EE83</item>
+        <item name="android:colorAccent">#4EE878</item>
+        <!-- Every AlertDialog in the launcher uses Precursor's look. (AI-assisted) -->
+        <item name="android:alertDialogTheme">@style/PrecursorDialog</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+
+    <!-- Dialogs: dark panel with a brass edge, light text, green buttons. (AI-assisted) -->
+    <style name="PrecursorDialog" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_panel</item>
+        <item name="android:colorBackground">#1B2833</item>
+        <item name="android:colorAccent">#4EE878</item>
+        <item name="android:textColorPrimary">#F1F5EE</item>
+        <item name="android:textColorSecondary">#C3CFD8</item>
+        <item name="android:textColorAlertDialogListItem">#F1F5EE</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:buttonBarButtonStyle">@style/PrecursorDialogButton</item>
+        <item name="android:windowTitleStyle">@style/PrecursorDialogTitle</item>
+    </style>
+
+    <style name="PrecursorDialogButton" parent="android:Widget.Material.Button.Borderless.Colored">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="PrecursorDialogTitle" parent="android:TextAppearance.Material.DialogWindowTitle">
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">22sp</item>
+        <item name="android:textColor">#F1F5EE</item>
     </style>
 </resources>

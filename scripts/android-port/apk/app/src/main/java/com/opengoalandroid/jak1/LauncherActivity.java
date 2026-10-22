@@ -26,7 +26,7 @@ import java.util.*;
  * keyboard. (AI-assisted)
  */
 public final class LauncherActivity extends Activity {
-    private static final int PICK_ISO = 10, EXPORT_LOG = 11;
+    private static final int PICK_ISO = 10, EXPORT_LOG = 11, SETTINGS = 12;
     /** Set by Jak1Activity when another game was requested while one was running. */
     static final String EXTRA_LAUNCH_GAME = "launchGame";
     private static final int GLES_3_2 = 0x30002;
@@ -39,6 +39,8 @@ public final class LauncherActivity extends Activity {
     private static final int W_WELCOME = 0, W_PICK = 1, W_ISO = 2, W_CHECK = 3, W_PREPARE = 4, W_DONE = 5, W_ERROR = 6;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    /** The language this screen was built in; Settings may change it meanwhile. */
+    private String createdLanguage = "";
     private FrameLayout root;
     private Screen screen = Screen.SHELF;
     private int wizardStep = W_WELCOME, wizardGame = 0, selected = 0;
@@ -69,6 +71,9 @@ public final class LauncherActivity extends Activity {
 
     // ------------------------------------------------------------------ lifecycle
 
+    /** Precursor's language: the phone's, or the one picked in Settings. (AI-assisted) */
+    @Override protected void attachBaseContext(Context base) { super.attachBaseContext(Language.wrap(base)); }
+
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         if (!BuildConfig.OPENGOAL_LAUNCHER) {
@@ -76,6 +81,7 @@ public final class LauncherActivity extends Activity {
             finish();
             return;
         }
+        createdLanguage = Language.current(this);
         root = new FrameLayout(this);
         root.setBackgroundColor(UiKit.BACKGROUND);
         setContentView(root);
@@ -92,8 +98,13 @@ public final class LauncherActivity extends Activity {
             chooseStartScreen();
         }
         rebuild();
-        new Thread(() -> LauncherStore.discardStaleWork(this), "Discard stale install").start();
+        new Thread(() -> {
+            LauncherStore.discardStaleWork(this);
+            LauncherStore.discardUnusedTools(this, currentTools());
+            Updater.discardDownloads(this);
+        }, "Discard stale install").start();
         handleLaunchRequest(getIntent());
+        UpdateFlow.handleInstallStatus(this, getIntent());
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -109,6 +120,7 @@ public final class LauncherActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (root == null) return;
+        if (!createdLanguage.equals(Language.current(this))) { recreate(); return; }
         handler.post(poll);
         handler.postDelayed(this::checkLastSession, 500);
         padListener = new InputManager.InputDeviceListener() {
@@ -119,6 +131,9 @@ public final class LauncherActivity extends Activity {
         getSystemService(InputManager.class).registerInputDeviceListener(padListener, handler);
         if (launchedGame) { launchedGame = false; animateNextShelf = true; transitioning = false; }
         if (screen == Screen.SHELF) rebuild(); // saves or installs may have changed meanwhile
+        handler.postDelayed(this::showUpdatedNotice, 700);
+        UpdateFlow.resume(this);
+        if (screen == Screen.SHELF && Updater.dueForCheck(this)) UpdateFlow.check(this, false);
     }
 
     @Override protected void onPause() {
@@ -131,6 +146,7 @@ public final class LauncherActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleLaunchRequest(intent);
+        UpdateFlow.handleInstallStatus(this, intent);
     }
 
     private void chooseStartScreen() {
@@ -139,7 +155,7 @@ public final class LauncherActivity extends Activity {
         if (LauncherStore.installing(this) && "install".equals(job.optString("operation"))) {
             screen = Screen.WIZARD;
             wizardGame = gameIndex(job.optString("game"));
-            wizardStep = InstallProgress.stage(job.optString("message")) < 0 ? W_CHECK : W_PREPARE;
+            wizardStep = InstallProgress.stage(job) < 0 ? W_CHECK : W_PREPARE;
         } else if (!pendingDone.isEmpty() && LauncherStore.installed(this, pendingDone) != null) {
             screen = Screen.WIZARD;
             wizardGame = gameIndex(pendingDone);
@@ -248,11 +264,11 @@ public final class LauncherActivity extends Activity {
 
     private Object[] wizardHints() {
         switch (wizardStep) {
-            case W_WELCOME: return new Object[]{Gamepad.Action.CONFIRM, "Empezar"};
-            case W_PICK: case W_ISO: return new Object[]{Gamepad.Action.CONFIRM, "Elegir", Gamepad.Action.BACK, "Atrás"};
-            case W_CHECK: case W_PREPARE: return new Object[]{Gamepad.Action.BACK, "Seguir en segundo plano"};
-            case W_DONE: return new Object[]{Gamepad.Action.CONFIRM, "Aceptar", Gamepad.Action.BACK, "Menú"};
-            default: return new Object[]{Gamepad.Action.CONFIRM, "Aceptar", Gamepad.Action.BACK, "Atrás"};
+            case W_WELCOME: return new Object[]{Gamepad.Action.CONFIRM, getString(R.string.hint_start)};
+            case W_PICK: case W_ISO: return new Object[]{Gamepad.Action.CONFIRM, getString(R.string.choose), Gamepad.Action.BACK, getString(R.string.back)};
+            case W_CHECK: case W_PREPARE: return new Object[]{Gamepad.Action.BACK, getString(R.string.hint_continue_background)};
+            case W_DONE: return new Object[]{Gamepad.Action.CONFIRM, getString(R.string.ok), Gamepad.Action.BACK, getString(R.string.menu)};
+            default: return new Object[]{Gamepad.Action.CONFIRM, getString(R.string.ok), Gamepad.Action.BACK, getString(R.string.back)};
         }
     }
 
@@ -263,17 +279,17 @@ public final class LauncherActivity extends Activity {
         if (wizardStep != W_WELCOME && wizardStep != W_ERROR) box.addView(dots(), wrap());
         switch (wizardStep) {
             case W_WELCOME: {
-                if (!wide) box.addView(pill("powered by OpenGOAL · no oficial", UiKit.MUTED), wrap());
-                box.addView(heading("Bienvenido a Precursor", wide ? 34 : 30, gravity), topMargin(-1, 10));
-                box.addView(body("La trilogía de Jak and Daxter, nativa en tu teléfono.", gravity), topMargin(-1, 8));
-                Button start = primary("Empezar", v -> goWizard(W_PICK));
+                if (!wide) box.addView(pill(getString(R.string.brand_pill), UiKit.MUTED), wrap());
+                box.addView(heading(getString(R.string.welcome_title), wide ? 34 : 30, gravity), topMargin(-1, 10));
+                box.addView(body(getString(R.string.welcome_body), gravity), topMargin(-1, 8));
+                Button start = primary(getString(R.string.hint_start), v -> goWizard(W_PICK));
                 start.setFocusedByDefault(true);
                 box.addView(actions(wide, start), topMargin(-1, 22));
                 break;
             }
             case W_PICK: {
-                box.addView(heading("¿Qué juego tienes?", 28, gravity), topMargin(-1, 12));
-                box.addView(body("Elige el juego de tu ISO. Después podrás agregar los demás.", gravity), topMargin(-1, 6));
+                box.addView(heading(getString(R.string.pick_title), 28, gravity), topMargin(-1, 12));
+                box.addView(body(getString(R.string.pick_body), gravity), topMargin(-1, 6));
                 LinearLayout picks = new LinearLayout(this);
                 picks.setClipChildren(false);
                 for (int i = 0; i < 3; i++) {
@@ -287,12 +303,12 @@ public final class LauncherActivity extends Activity {
                     TextView name = label(InstallService.title(GAMES[i]), 13, UiKit.TEXT, true);
                     name.setGravity(Gravity.CENTER);
                     card.addView(name, topMargin(-2, 6));
-                    TextView size2 = label(String.format(Locale.ROOT, "ISO de %.1f GB", ISO_GB[i]), 11, UiKit.MUTED, false);
+                    TextView size2 = label(getString(R.string.iso_size, String.format(Locale.ROOT, "%.1f", ISO_GB[i])), 11, UiKit.MUTED, false);
                     size2.setGravity(Gravity.CENTER);
                     card.addView(size2);
                     Gamepad.focusable(card, 16);
                     card.setId(1000 + i);
-                    card.setContentDescription("Elegir " + InstallService.title(GAMES[i]));
+                    card.setContentDescription(getString(R.string.pick_game, InstallService.title(GAMES[i])));
                     card.setOnClickListener(v -> pickGame(picks, index));
                     if (i == 0) card.setFocusedByDefault(true);
                     Motion.pressable(card);
@@ -302,34 +318,39 @@ public final class LauncherActivity extends Activity {
                 break;
             }
             case W_ISO: {
-                box.addView(heading("Busca tu ISO de " + title, 28, gravity), topMargin(-1, 12));
-                box.addView(body("Se abre el selector de archivos de Android. Tu ISO no se modifica ni se sube a ningún lado.", gravity), topMargin(-1, 6));
+                box.addView(heading(getString(R.string.iso_title, title), 28, gravity), topMargin(-1, 12));
+                box.addView(body(getString(R.string.iso_body), gravity), topMargin(-1, 6));
                 double need = ISO_GB[wizardGame] * 3 + 3;
                 double free = new StatFs(getFilesDir().getPath()).getAvailableBytes() / 1e9;
-                TextView space = body(String.format(Locale.ROOT, "Necesitas unos %.0f GB libres para prepararlo; tienes %.0f GB.", Math.ceil(need), free), gravity);
+                TextView space = body(getString(R.string.iso_space, String.format(Locale.ROOT, "%.0f", Math.ceil(need)),
+                        String.format(Locale.ROOT, "%.0f", free)), gravity);
                 if (free < need) space.setTextColor(0xFFFF9A80);
                 box.addView(space, topMargin(-1, 8));
+                if (installed(wizardGame)) {
+                    TextView keep = body(getString(R.string.prepare_again_keeps), gravity);
+                    keep.setTextColor(UiKit.ACCENT);
+                    box.addView(keep, topMargin(-1, 8));
+                }
                 if (helpOpen) {
-                    TextView tips = body("Copia la ISO de tu disco de PS2 a la carpeta Descargas del teléfono con un cable USB o desde una tarjeta SD. "
-                            + "Sirven las ediciones NTSC, PAL y NTSC-J. Las versiones de PS3, PS4 y PS5 no sirven.", gravity);
+                    TextView tips = body(getString(R.string.iso_help), gravity);
                     tips.setTextColor(UiKit.MUTED);
                     tips.setPadding(dp(12), dp(6), 0, dp(6));
                     tips.setBackground(leftRule());
                     box.addView(tips, topMargin(-1, 10));
                 }
-                Button choose = primary("Elegir mi ISO", v -> pickIsoFor(wizardGame));
+                Button choose = primary(getString(R.string.iso_choose), v -> pickIsoFor(wizardGame));
                 choose.setFocusedByDefault(true);
-                Button help = ghost(helpOpen ? "Ocultar ayuda" : "¿Cómo copio la ISO?", v -> { helpOpen = !helpOpen; rebuild(); });
+                Button help = ghost(getString(helpOpen ? R.string.iso_help_hide : R.string.iso_help_show), v -> { helpOpen = !helpOpen; rebuild(); });
                 box.addView(actions(wide, choose, help), topMargin(-1, 20));
                 break;
             }
             case W_CHECK: {
-                box.addView(heading("Comprobando tu ISO…", 28, gravity), topMargin(-1, 12));
-                box.addView(body("Leyendo el disco para confirmar que es " + title + " y que la edición es compatible.", gravity), topMargin(-1, 6));
+                box.addView(heading(getString(R.string.check_title), 28, gravity), topMargin(-1, 12));
+                box.addView(body(getString(R.string.check_body, title), gravity), topMargin(-1, 6));
                 break;
             }
             case W_PREPARE: {
-                box.addView(heading("Preparando " + title, 28, gravity), topMargin(-1, 12));
+                box.addView(heading(getString(R.string.prepare_title, title), 28, gravity), topMargin(-1, 12));
                 progressText = body("", gravity);
                 box.addView(progressText, topMargin(-1, 6));
                 progressBar = new GlowBar(this, false);
@@ -338,34 +359,32 @@ public final class LauncherActivity extends Activity {
                 box.addView(progressBar, barParams);
                 stagesBox = column();
                 box.addView(stagesBox, topMargin(wide ? -1 : -2, 10));
-                Button background = ghost("Seguir en segundo plano", v -> moveTaskToBack(true));
-                Button cancel = ghost("Cancelar", v -> confirmCancel());
+                Button background = ghost(getString(R.string.hint_continue_background), v -> moveTaskToBack(true));
+                Button cancel = ghost(getString(R.string.cancel), v -> confirmCancel());
                 background.setFocusedByDefault(true);
                 box.addView(actions(wide, background, cancel), topMargin(-1, 16));
                 // Paint the current state now; the poller keeps it updated afterwards.
                 JSONObject job = LauncherStore.read(LauncherStore.job(this));
-                String message = job.optString("message");
-                updateProgress(Math.max(0, InstallProgress.stage(message)),
-                        InstallProgress.overall(message, job.optInt("percent", -1)), message);
+                updateProgress(Math.max(0, InstallProgress.stage(job)), InstallProgress.overall(job));
                 break;
             }
             case W_DONE: {
-                box.addView(heading("¡" + title + " está listo!", 30, gravity), topMargin(-1, 12));
-                box.addView(body("Tus partidas se guardan en el teléfono. Puedes agregar los otros juegos desde el menú cuando quieras.", gravity), topMargin(-1, 6));
-                Button play = primary("▶  Jugar ahora", v -> { leaveDone(); playGame(game); });
+                box.addView(heading(getString(R.string.done_title, title), 30, gravity), topMargin(-1, 12));
+                box.addView(body(getString(R.string.done_body), gravity), topMargin(-1, 6));
+                Button play = primary(getString(R.string.play_now), v -> { leaveDone(); playGame(game); });
                 play.setFocusedByDefault(true);
                 Motion.beat(play);
-                Button menu = ghost("Ir al menú", v -> leaveDone());
+                Button menu = ghost(getString(R.string.go_to_menu), v -> leaveDone());
                 box.addView(actions(wide, play, menu), topMargin(-1, 20));
                 break;
             }
             default: {
-                box.addView(heading("No se pudo preparar " + title, 28, gravity), topMargin(-1, 4));
-                box.addView(body(errorText.isEmpty() ? "La preparación se detuvo." : errorText, gravity), topMargin(-1, 8));
-                Button retry = primary("Elegir otra ISO", v -> goWizard(W_ISO));
+                box.addView(heading(getString(R.string.error_title, title), 28, gravity), topMargin(-1, 4));
+                box.addView(body(errorText.isEmpty() ? getString(R.string.error_stopped) : errorText, gravity), topMargin(-1, 8));
+                Button retry = primary(getString(R.string.choose_another_iso), v -> goWizard(W_ISO));
                 retry.setFocusedByDefault(true);
-                Button log = ghost("Ver registro", v -> showLog());
-                Button report = ghost("Reportar", v -> askForReport("Falló la preparación de " + title + ": " + errorText));
+                Button log = ghost(getString(R.string.view_log), v -> showLog());
+                Button report = ghost(getString(R.string.report), v -> askForReport(getString(R.string.report_prepare_failed, title, errorText)));
                 box.addView(actions(wide, retry, log, report), topMargin(-1, 20));
             }
         }
@@ -484,7 +503,7 @@ public final class LauncherActivity extends Activity {
     /** Starts the guided flow at the ISO step for a game picked from the shelf. */
     private void startAdd(int game) {
         if (LauncherStore.installing(this)) {
-            showError("Ya se está preparando un juego. Espera a que termine.");
+            showError(getString(R.string.already_preparing));
             return;
         }
         screen = Screen.WIZARD;
@@ -495,10 +514,10 @@ public final class LauncherActivity extends Activity {
     }
 
     private void confirmCancel() {
-        new AlertDialog.Builder(this).setTitle("¿Cancelar la preparación?")
-                .setMessage("Se borra lo preparado hasta ahora. Tu ISO no se toca.")
-                .setNegativeButton("Seguir preparando", null)
-                .setPositiveButton("Cancelar", (d, w) -> startService(new Intent(this, InstallService.class).setAction(InstallService.CANCEL)))
+        new AlertDialog.Builder(this).setTitle(R.string.cancel_prepare_title)
+                .setMessage(R.string.cancel_prepare_body)
+                .setNegativeButton(R.string.keep_preparing, null)
+                .setPositiveButton(R.string.cancel, (d, w) -> startService(new Intent(this, InstallService.class).setAction(InstallService.CANCEL)))
                 .show();
     }
 
@@ -511,10 +530,10 @@ public final class LauncherActivity extends Activity {
         String state = job.optString("state"), message = job.optString("message");
         if (running && "running".equals(state)) {
             startingUntil = 0;
-            int stage = InstallProgress.stage(message);
+            int stage = InstallProgress.stage(job);
             int step = stage < 0 ? W_CHECK : W_PREPARE;
             if (step != wizardStep) { if (!transitioning) goWizard(step); return; }
-            if (step == W_PREPARE) updateProgress(stage, InstallProgress.overall(message, job.optInt("percent", -1)), message);
+            if (step == W_PREPARE) updateProgress(stage, InstallProgress.overall(job));
             return;
         }
         if (starting) return;
@@ -524,12 +543,15 @@ public final class LauncherActivity extends Activity {
         } else if ("cancelled".equals(state)) {
             goWizard(W_ISO);
         } else {
-            errorText = "running".equals(state) ? "La preparación se interrumpió (Android cerró el proceso). Vuelve a elegir la ISO." : message;
+            errorText = "running".equals(state) ? getString(R.string.prepare_interrupted) : message;
             goWizard(W_ERROR);
         }
     }
 
-    private void updateProgress(int stage, int overall, String message) {
+    private static final int[] STAGE_NAMES = {R.string.stage_copy, R.string.stage_extract, R.string.stage_levels,
+            R.string.stage_compile, R.string.stage_finish};
+
+    private void updateProgress(int stage, int overall) {
         if (progressBar != null) progressBar.setProgress(overall);
         if (progressOrb != null) { progressOrb.setProgress(overall); progressOrb.setStagesDone(stage); }
         countPercent(overall);
@@ -539,14 +561,14 @@ public final class LauncherActivity extends Activity {
             stagesBox.removeAllViews();
             if (wide()) {
                 // Landscape has little height: one line instead of the full list.
-                stagesBox.addView(label("Etapa " + (stage + 1) + " de " + InstallProgress.STAGES.length + " · "
-                        + InstallProgress.STAGES[stage], 14, UiKit.TEXT, true));
+                stagesBox.addView(label(getString(R.string.stage_of, stage + 1, InstallProgress.STAGE_COUNT,
+                        getString(STAGE_NAMES[stage])), 14, UiKit.TEXT, true));
                 if (advanced) Motion.slideIn(stagesBox, 1, 0);
                 return;
             }
-            for (int i = 0; i < InstallProgress.STAGES.length; i++) {
+            for (int i = 0; i < InstallProgress.STAGE_COUNT; i++) {
                 String mark = i < stage ? "✓  " : i == stage ? "●  " : "○  ";
-                TextView row = label(mark + InstallProgress.STAGES[i], 13, i < stage ? UiKit.ACCENT : i == stage ? UiKit.TEXT : UiKit.MUTED, i == stage);
+                TextView row = label(mark + getString(STAGE_NAMES[i]), 13, i < stage ? UiKit.ACCENT : i == stage ? UiKit.TEXT : UiKit.MUTED, i == stage);
                 stagesBox.addView(row, topMargin(-2, 3));
                 if (i == stage) Motion.pulse(row);
                 if (advanced && i == stage - 1) {
@@ -564,12 +586,11 @@ public final class LauncherActivity extends Activity {
     /** The percentage counts up to each new value instead of jumping. */
     private void countPercent(int overall) {
         if (progressText == null) return;
-        String tail = "% · Esto tarda varios minutos. Puedes salir: te avisamos al terminar.";
         TextView target = progressText;
         if (percentAnim != null) percentAnim.cancel();
-        if (!Motion.enabled()) { shownPercent = overall; target.setText(overall + tail); return; }
+        if (!Motion.enabled()) { shownPercent = overall; target.setText(getString(R.string.prepare_progress, overall)); return; }
         percentAnim = ValueAnimator.ofInt(shownPercent, overall).setDuration(500);
-        percentAnim.addUpdateListener(a -> { shownPercent = (int) a.getAnimatedValue(); target.setText(shownPercent + tail); });
+        percentAnim.addUpdateListener(a -> { shownPercent = (int) a.getAnimatedValue(); target.setText(getString(R.string.prepare_progress, shownPercent)); });
         percentAnim.start();
     }
 
@@ -634,7 +655,7 @@ public final class LauncherActivity extends Activity {
             LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, 0, 1);
             cardParams.topMargin = dp(18);
             col.addView(card, cardParams);
-            TextView label = label("TUS JUEGOS", 12, UiKit.MUTED, true);
+            TextView label = label(getString(R.string.your_games), 12, UiKit.MUTED, true);
             label.setLetterSpacing(.1f);
             col.addView(label, topMargin(-2, 18));
         }
@@ -652,14 +673,15 @@ public final class LauncherActivity extends Activity {
         LinearLayout.LayoutParams sepParams = new LinearLayout.LayoutParams(dp(2), tile - dp(20));
         sepParams.leftMargin = dp(14); sepParams.rightMargin = dp(2); sepParams.bottomMargin = dp(10);
         shelf.addView(sep, sepParams);
-        shelf.addView(utilityTile("⚙", "Ajustes", tile, v -> showSettings()), tileParams(tile * 8 / 10, 12));
-        shelf.addView(utilityTile("🐞", "Reportar", tile, v -> askForReport(null)), tileParams(tile * 8 / 10, 12));
+        shelf.addView(utilityTile("⚙", getString(R.string.settings), tile, v -> showSettings()), tileParams(tile * 8 / 10, 12));
+        shelf.addView(utilityTile("🐞", getString(R.string.report), tile, v -> askForReport(null)), tileParams(tile * 8 / 10, 12));
         scroll.addView(shelf);
         col.addView(scroll, topMargin(-1, wide ? 10 : 6));
 
         frame.addView(col, new FrameLayout.LayoutParams(-1, -1));
-        addHints(frame, Gamepad.Action.CONFIRM, installed(selected) ? "Jugar" : "Agregar",
-                Gamepad.Action.OPTIONS, "Opciones", Gamepad.Action.PREV, "", Gamepad.Action.NEXT, "Cambiar juego");
+        addHints(frame, Gamepad.Action.CONFIRM, getString(installed(selected) ? R.string.hint_play : R.string.hint_add),
+                Gamepad.Action.OPTIONS, getString(R.string.hint_options), Gamepad.Action.PREV, "",
+                Gamepad.Action.NEXT, getString(R.string.hint_switch_game));
         heroAnimate = false;
         fillHero();
         if (animateNextShelf) {
@@ -684,7 +706,7 @@ public final class LauncherActivity extends Activity {
         ImageView cover = coverImage(index, !ready, 14);
         tile.addView(cover, new FrameLayout.LayoutParams(size, size));
         // Small tiles (landscape) leave little room: short label, tighter padding, never clipped.
-        TextView state = label(ready ? "Listo" : "+ Agregar", size < dp(90) ? 10 : 11, UiKit.TEXT, true);
+        TextView state = label(getString(ready ? R.string.tile_ready : R.string.tile_add), size < dp(90) ? 10 : 11, UiKit.TEXT, true);
         state.setSingleLine(true);
         state.setPadding(dp(7), dp(3), dp(7), dp(3));
         state.setMaxWidth(size - dp(12));
@@ -692,7 +714,7 @@ public final class LauncherActivity extends Activity {
         state.setBackground(UiKit.shape(this, 0xB3000000, 99));
         tile.addView(state, new FrameLayout.LayoutParams(-2, -2, ready ? Gravity.BOTTOM | Gravity.START : Gravity.CENTER));
         ((FrameLayout.LayoutParams) state.getLayoutParams()).setMargins(dp(6), dp(6), dp(6), dp(6));
-        tile.setContentDescription(InstallService.title(GAMES[index]) + (ready ? ", instalado" : ", sin instalar"));
+        tile.setContentDescription(getString(ready ? R.string.tile_installed : R.string.tile_not_installed, InstallService.title(GAMES[index])));
         Gamepad.focusable(tile, 14);
         Gamepad.alsoOnFocus(tile, (v, has) -> {
             if (has) select(index);
@@ -741,8 +763,9 @@ public final class LauncherActivity extends Activity {
         View old = root.findViewWithTag("hints");
         if (old instanceof ViewGroup) ((ViewGroup) old.getParent()).removeView(old);
         ViewGroup frame = (ViewGroup) root.getChildAt(0);
-        addHints(frame, Gamepad.Action.CONFIRM, installed(selected) ? "Jugar" : "Agregar",
-                Gamepad.Action.OPTIONS, "Opciones", Gamepad.Action.PREV, "", Gamepad.Action.NEXT, "Cambiar juego");
+        addHints(frame, Gamepad.Action.CONFIRM, getString(installed(selected) ? R.string.hint_play : R.string.hint_add),
+                Gamepad.Action.OPTIONS, getString(R.string.hint_options), Gamepad.Action.PREV, "",
+                Gamepad.Action.NEXT, getString(R.string.hint_switch_game));
     }
 
     /** Hero: state, title, last save or what is needed, and the two main actions. */
@@ -765,29 +788,41 @@ public final class LauncherActivity extends Activity {
             heroArt.setImageResource(COVERS[selected]);
         }
         heroArt.setColorFilter(ready ? null : dimFilter());
-        heroBox.addView(pill(ready ? "● Instalado" : "○ Sin instalar", ready ? UiKit.ACCENT : UiKit.MUTED), wrap());
+        heroBox.addView(pill(getString(ready ? R.string.pill_installed : R.string.pill_not_installed), ready ? UiKit.ACCENT : UiKit.MUTED), wrap());
         heroBox.addView(heading(InstallService.title(game), wide ? 30 : 30, Gravity.START), topMargin(-1, wide ? 4 : 8));
         LinearLayout meta = new LinearLayout(this);
         if (ready) {
             GameSaves.Slot last = GameSaves.latest(this, game);
             if (last != null) {
-                meta.addView(pill(GameSaves.levelName(game, last.levelIndex) + " · " + Math.round(last.completionPercent) + "%", UiKit.TEXT));
+                meta.addView(pill(UiKit.levelName(this, game, last.levelIndex) + " · " + Math.round(last.completionPercent) + "%", UiKit.TEXT));
                 meta.addView(pill(DateUtils.getRelativeTimeSpanString(last.activeFile.lastModified()).toString(), UiKit.MUTED), leftMargin(8));
             } else {
-                meta.addView(pill("Partida nueva", UiKit.TEXT));
+                meta.addView(pill(getString(R.string.new_game), UiKit.TEXT));
             }
         } else {
-            meta.addView(pill(String.format(Locale.ROOT, "ISO de %.1f GB", ISO_GB[selected]), UiKit.TEXT));
-            meta.addView(pill(String.format(Locale.ROOT, "Necesita ~%.0f GB libres", Math.ceil(ISO_GB[selected] * 3 + 3)), UiKit.MUTED), leftMargin(8));
+            meta.addView(pill(getString(R.string.iso_size, String.format(Locale.ROOT, "%.1f", ISO_GB[selected])), UiKit.TEXT));
+            meta.addView(pill(getString(R.string.needs_free, String.format(Locale.ROOT, "%.0f", Math.ceil(ISO_GB[selected] * 3 + 3))), UiKit.MUTED), leftMargin(8));
         }
         heroBox.addView(meta, topMargin(-2, wide ? 6 : 10));
+        int stale = ready ? staleness(game) : LauncherStore.CURRENT;
+        if (stale != LauncherStore.CURRENT) {
+            // Tapping the warning explains it and offers to prepare the game again.
+            TextView warning = pill(getString(stale == LauncherStore.INCOMPATIBLE ? R.string.stale_required_pill
+                    : R.string.stale_recommended_pill), 0xFFFFC27A);
+            warning.setOnClickListener(v -> explainStale(game));
+            Gamepad.focusable(warning, 99);
+            heroBox.addView(warning, topMargin(-2, 8));
+        }
         Button main, second = null;
-        if (ready) {
+        if (ready && stale == LauncherStore.INCOMPATIBLE) {
+            main = primary(getString(R.string.prepare_again), v -> startAdd(selected));
+            second = ghost(getString(R.string.saves_and_options), v -> openOptions(selected));
+        } else if (ready) {
             boolean hasSave = GameSaves.latest(this, game) != null;
-            main = primary(hasSave ? "▶  Continuar" : "▶  Jugar", v -> playGame(game));
-            second = ghost("Partidas y opciones", v -> openOptions(selected));
+            main = primary(getString(hasSave ? R.string.continue_game : R.string.play), v -> playGame(game));
+            second = ghost(getString(R.string.saves_and_options), v -> openOptions(selected));
         } else {
-            main = primary("＋  Agregar ISO de " + InstallService.title(game), v -> startAdd(selected));
+            main = primary(getString(R.string.add_iso, InstallService.title(game)), v -> startAdd(selected));
         }
         main.setId(3000);
         if (second != null) second.setId(3001);
@@ -834,23 +869,67 @@ public final class LauncherActivity extends Activity {
     }
 
     private void showSettings() {
-        String[] items = {"Acerca de Precursor", "Registro de instalación", "Ver otra vez la bienvenida"};
-        new AlertDialog.Builder(this).setTitle("Ajustes").setItems(items, (d, which) -> {
-            if (which == 0) showAbout();
-            else if (which == 1) showLog();
-            else { screen = Screen.WIZARD; wizardFirstRun = true; wizardStep = W_WELCOME; rebuild(); }
-        }).show();
+        startActivityForResult(new Intent(this, SettingsActivity.class), SETTINGS);
+        overridePendingTransition(R.anim.options_enter, R.anim.shelf_exit);
     }
 
-    private void showAbout() {
-        new AlertDialog.Builder(this).setTitle("Precursor · powered by OpenGOAL")
-                .setMessage("Precursor es un port no oficial de la trilogía de Jak and Daxter para Android, construido sobre OpenGOAL "
-                        + "(opengoal.dev). No está afiliado con el equipo de OpenGOAL, Naughty Dog ni Sony: no reportes a OpenGOAL los problemas de esta app.\n\n"
-                        + "Necesitas la ISO de tu propio disco. Precursor no incluye archivos del juego.\n\n"
-                        + "Controles: táctiles en pantalla o cualquier mando compatible. En el menú: cruceta para moverte, A para aceptar, "
-                        + "B para volver, X para opciones, LB/RB para cambiar de juego.\n\n"
-                        + "Versión " + BuildConfig.VERSION_NAME + " · " + BuildConfig.GIT_COMMIT)
-                .setPositiveButton("Entendido", null).show();
+    // ------------------------------------------------------------------ updates and game data
+
+    private String toolsHash;
+
+    /** The bundled toolchain's hash, which each installation records. */
+    private String currentTools() {
+        if (toolsHash != null) return toolsHash;
+        try (InputStream input = getAssets().open("toolchain.sha256")) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            InstallFiles.copy(input, out);
+            toolsHash = out.toString("UTF-8").trim();
+        } catch (IOException error) {
+            toolsHash = "";
+        }
+        return toolsHash;
+    }
+
+    private int staleness(String game) {
+        return LauncherStore.staleness(this, game, currentTools(), BuildConfig.GAME_DATA_VERSION);
+    }
+
+    private void explainStale(String game) {
+        boolean required = staleness(game) == LauncherStore.INCOMPATIBLE;
+        String title = InstallService.title(game);
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.prepare_again_title, title))
+                .setMessage(getString(required ? R.string.stale_required_body : R.string.stale_recommended_body, title)
+                        + "\n\n" + getString(R.string.data_is_kept))
+                .setPositiveButton(R.string.prepare_again, (d, w) -> startAdd(gameIndex(game)))
+                .setNegativeButton(R.string.not_now, null);
+        if (required) dialog.setNeutralButton(R.string.play_anyway, (d, w) -> launchChecked(game));
+        dialog.show();
+    }
+
+    private AlertDialog updatedDialog;
+
+    /** Once after Precursor was updated: what changed for the installed games. */
+    private void showUpdatedNotice() {
+        int previous = Updater.lastRun(this);
+        if (previous == BuildConfig.VERSION_CODE || isFinishing() || (updatedDialog != null && updatedDialog.isShowing())) return;
+        if (previous == 0) { Updater.markRun(this); return; } // first run: nothing was updated
+        List<String> required = new ArrayList<>(), recommended = new ArrayList<>();
+        for (String game : GAMES) {
+            if (LauncherStore.installed(this, game) == null) continue;
+            int stale = staleness(game);
+            if (stale == LauncherStore.INCOMPATIBLE) required.add(InstallService.title(game));
+            else if (stale == LauncherStore.OUTDATED) recommended.add(InstallService.title(game));
+        }
+        String message;
+        if (!required.isEmpty()) message = getString(R.string.updated_required, String.join(", ", required));
+        else if (!recommended.isEmpty()) message = getString(R.string.updated_recommended, String.join(", ", recommended));
+        else message = getString(R.string.updated_nothing);
+        updatedDialog = new AlertDialog.Builder(this).setTitle(getString(R.string.updated_title, BuildConfig.VERSION_NAME))
+                .setMessage(message + "\n\n" + getString(R.string.data_is_kept))
+                // Recorded only once answered: turning the phone rebuilds the screen and shows it again.
+                .setPositiveButton(R.string.ok, (d, w) -> Updater.markRun(this))
+                .setOnCancelListener(d -> Updater.markRun(this)).show();
     }
 
     // ------------------------------------------------------------------ input
@@ -915,7 +994,7 @@ public final class LauncherActivity extends Activity {
     // ------------------------------------------------------------------ ISO and installation
 
     private void pickIsoFor(int game) {
-        if (LauncherStore.installing(this)) { showError("Ya se está preparando un juego."); return; }
+        if (LauncherStore.installing(this)) { showError(getString(R.string.already_preparing_short)); return; }
         // Android 13+: without this the installation progress/cancel notification is hidden.
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -928,11 +1007,15 @@ public final class LauncherActivity extends Activity {
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try { startActivityForResult(intent, PICK_ISO); }
-        catch (ActivityNotFoundException error) { showError("No hay un selector de archivos disponible."); }
+        catch (ActivityNotFoundException error) { showError(getString(R.string.no_file_picker)); }
     }
 
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == SETTINGS && result == SettingsActivity.RESULT_WELCOME) {
+            screen = Screen.WIZARD; wizardFirstRun = true; wizardStep = W_WELCOME; rebuild();
+            return;
+        }
         if (result != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         if (request == PICK_ISO) {
@@ -950,14 +1033,14 @@ public final class LauncherActivity extends Activity {
                 screen = Screen.WIZARD;
                 wizardStep = W_CHECK;
                 rebuild();
-            } catch (Exception error) { showError("No se pudo iniciar: " + error.getMessage()); }
+            } catch (Exception error) { showError(getString(R.string.could_not_start, error.getMessage())); }
         } else if (request == EXPORT_LOG) {
             new Thread(() -> {
                 try (InputStream input = new FileInputStream(LauncherStore.log(this));
                      OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
-                    if (output == null) throw new IOException("No se pudo abrir el destino");
+                    if (output == null) throw new IOException(getString(R.string.cannot_open_destination));
                     InstallFiles.copy(input, output);
-                    runOnUiThread(() -> Toast.makeText(this, "Registro guardado", Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> Toast.makeText(this, R.string.log_saved, Toast.LENGTH_SHORT).show());
                 } catch (Exception error) { runOnUiThread(() -> showError(error.getMessage())); }
             }, "Export log").start();
         }
@@ -971,13 +1054,13 @@ public final class LauncherActivity extends Activity {
         view.setPadding(dp(16), dp(12), dp(16), dp(12));
         ScrollView scroll = new ScrollView(this);
         scroll.addView(view);
-        new AlertDialog.Builder(this).setTitle("Registro de instalación").setView(scroll)
-                .setPositiveButton("Cerrar", null).setNeutralButton("Guardar registro", (dialog, which) -> {
+        new AlertDialog.Builder(this).setTitle(R.string.log_title).setView(scroll)
+                .setPositiveButton(R.string.close, null).setNeutralButton(R.string.save_log, (dialog, which) -> {
                     if (!LauncherStore.log(this).isFile()) return;
                     Intent export = new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("text/plain")
-                            .addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE, "precursor-instalacion.log");
+                            .addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE, "precursor-install.log");
                     try { startActivityForResult(export, EXPORT_LOG); }
-                    catch (ActivityNotFoundException error) { showError("No hay selector de archivos."); }
+                    catch (ActivityNotFoundException error) { showError(getString(R.string.no_file_picker)); }
                 }).show();
     }
 
@@ -987,9 +1070,9 @@ public final class LauncherActivity extends Activity {
             byte[] bytes = new byte[(int) Math.min(length, limit)];
             file.seek(length - bytes.length);
             file.readFully(bytes);
-            return bytes.length == 0 ? "Todavía no hay mensajes del instalador." :
+            return bytes.length == 0 ? getString(R.string.log_empty) :
                     new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-        } catch (IOException error) { return "Todavía no hay un registro de instalación."; }
+        } catch (IOException error) { return getString(R.string.log_missing); }
     }
 
     // ------------------------------------------------------------------ playing
@@ -1016,15 +1099,20 @@ public final class LauncherActivity extends Activity {
 
     /** Checks the device and the running session before starting a game. */
     private void playGame(String game) {
+        if (installed(gameIndex(game)) && staleness(game) == LauncherStore.INCOMPATIBLE) { explainStale(game); return; }
+        launchChecked(game);
+    }
+
+    /** playGame without the "prepare again" check (the player chose to play anyway). */
+    private void launchChecked(String game) {
         int gles = getSystemService(ActivityManager.class).getDeviceConfigurationInfo().reqGlEsVersion;
         if (gles < GLES_3_2 && !getPreferences(0).getBoolean("ignoreGles", false)) {
-            new AlertDialog.Builder(this).setTitle("Tu teléfono no es compatible")
-                    .setMessage("El juego necesita OpenGL ES 3.2 y este teléfono informa OpenGL ES "
-                            + (gles >> 16) + "." + (gles & 0xffff) + ". Lo más probable es que se cierre al abrir.")
-                    .setNegativeButton("Cancelar", null)
-                    .setPositiveButton("Intentar igual", (d, w) -> {
+            new AlertDialog.Builder(this).setTitle(R.string.unsupported_title)
+                    .setMessage(getString(R.string.unsupported_body, (gles >> 16) + "." + (gles & 0xffff)))
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.try_anyway, (d, w) -> {
                         getPreferences(0).edit().putBoolean("ignoreGles", true).apply();
-                        playGame(game);
+                        launchChecked(game);
                     }).show();
             return;
         }
@@ -1035,12 +1123,11 @@ public final class LauncherActivity extends Activity {
             return;
         }
         if (pid > 0) {
-            String open = InstallFiles.validGame(running) ? InstallService.title(running) : "Otro juego";
-            new AlertDialog.Builder(this).setTitle(open + " sigue abierto")
-                    .setMessage("Para jugar " + InstallService.title(game) + " hay que cerrar "
-                            + open + ". Se perderá lo que no hayas guardado.")
-                    .setNegativeButton("Cancelar", null)
-                    .setPositiveButton("Cerrar y abrir", (d, w) -> {
+            String open = InstallFiles.validGame(running) ? InstallService.title(running) : getString(R.string.another_game);
+            new AlertDialog.Builder(this).setTitle(getString(R.string.still_open_title, open))
+                    .setMessage(getString(R.string.still_open_body, InstallService.title(game), open))
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.close_and_open, (d, w) -> {
                         new android.util.AtomicFile(LauncherStore.session(this)).delete();
                         android.os.Process.killProcess(pid);
                         startGameWhenClosed(game, 0);
@@ -1126,57 +1213,55 @@ public final class LauncherActivity extends Activity {
         String what = ReportBuilder.captureAbnormalSession(this, session);
         if (what == null || crashPromptShown) return false;
         crashPromptShown = true;
-        new AlertDialog.Builder(this).setTitle("El juego se cerró inesperadamente")
-                .setMessage(what + ". ¿Quieres enviar un reporte para ayudar a arreglarlo? "
-                        + "Incluye registros técnicos, no tus partidas.")
-                .setNegativeButton("Ahora no", (d, w) -> crashPromptShown = false)
-                .setPositiveButton("Enviar reporte", (d, w) -> { crashPromptShown = false; askForReport(what); })
+        new AlertDialog.Builder(this).setTitle(R.string.crash_title)
+                .setMessage(getString(R.string.crash_body, what))
+                .setNegativeButton(R.string.not_now, (d, w) -> crashPromptShown = false)
+                .setPositiveButton(R.string.send_report, (d, w) -> { crashPromptShown = false; askForReport(what); })
                 .show();
         return true;
     }
 
     private void askForReport(String headline) {
         EditText note = new EditText(this);
-        note.setHint("¿Qué estabas haciendo? (nivel, qué pasó…)");
+        note.setHint(R.string.report_hint);
         note.setMinLines(3);
         note.setGravity(Gravity.TOP);
         if (headline != null) note.setText(headline + ". ");
         LinearLayout box = column();
         box.setPadding(dp(20), dp(8), dp(20), 0);
         box.addView(note);
-        new AlertDialog.Builder(this).setTitle("Reportar un problema")
-                .setMessage("Se creará un archivo .zip con información del teléfono y registros del launcher y del juego. "
-                        + "No incluye tus partidas ni la ISO. Después elige dónde enviarlo (Discord, correo…).")
+        new AlertDialog.Builder(this).setTitle(R.string.report_title)
+                .setMessage(R.string.report_body)
                 .setView(box)
-                .setNegativeButton("Cancelar", null)
-                .setPositiveButton("Crear y compartir", (d, w) -> shareReport(note.getText().toString()))
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.create_and_share, (d, w) -> shareReport(note.getText().toString()))
                 .show();
     }
 
     private void shareReport(String note) {
-        Toast.makeText(this, "Preparando el reporte…", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.preparing_report, Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             try {
                 File report = ReportBuilder.build(this, note);
                 Uri uri = ReportProvider.uriFor(this, report);
                 Intent send = new Intent(Intent.ACTION_SEND).setType("application/zip")
                         .putExtra(Intent.EXTRA_STREAM, uri)
-                        .putExtra(Intent.EXTRA_SUBJECT, "Reporte Precursor " + BuildConfig.GIT_COMMIT)
+                        .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.report_subject, BuildConfig.GIT_COMMIT))
                         .putExtra(Intent.EXTRA_TEXT, note)
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 send.setClipData(ClipData.newRawUri("reporte", uri));
                 runOnUiThread(() -> {
                     ReportBuilder.clearPending(this);
-                    startActivity(Intent.createChooser(send, "Enviar reporte"));
+                    startActivity(Intent.createChooser(send, getString(R.string.send_report)));
                 });
             } catch (Exception error) {
-                runOnUiThread(() -> showError("No se pudo crear el reporte: " + error.getMessage()));
+                runOnUiThread(() -> showError(getString(R.string.report_failed, error.getMessage())));
             }
         }, "Build report").start();
     }
 
     private void showError(String text) {
-        new AlertDialog.Builder(this).setTitle("Precursor").setMessage(text).setPositiveButton("Aceptar", null).show();
+        new AlertDialog.Builder(this).setTitle(R.string.app_name).setMessage(text).setPositiveButton(R.string.ok, null).show();
     }
 
     // ------------------------------------------------------------------ small view helpers
@@ -1280,7 +1365,7 @@ public final class LauncherActivity extends Activity {
                 stretch.start();
             }
         }
-        dots.setContentDescription("Paso " + current + " de 5");
+        dots.setContentDescription(getString(R.string.step_of, current));
         return dots;
     }
 
@@ -1302,7 +1387,7 @@ public final class LauncherActivity extends Activity {
         brand.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
         brand.setLetterSpacing(.04f);
         text.addView(brand);
-        TextView sub = label("POWERED BY OPENGOAL · NO OFICIAL", Math.max(9, sizeSp * 45 / 100), UiKit.MUTED, false);
+        TextView sub = label(getString(R.string.brand_tagline), Math.max(9, sizeSp * 45 / 100), UiKit.MUTED, false);
         sub.setLetterSpacing(.1f);
         sub.setSingleLine(true);
         text.addView(sub);

@@ -64,19 +64,20 @@ final class GameMenuView extends FrameLayout {
         top.addView(names, namesParams);
         panel.addView(top);
 
-        TextView warn = UiKit.label(activity, "Lo que no hayas guardado en el juego se perderá.", 14, UiKit.MUTED, false);
+        TextView warn = UiKit.label(activity, activity.getString(R.string.menu_warning), 14, UiKit.MUTED, false);
         LinearLayout.LayoutParams warnParams = new LinearLayout.LayoutParams(-1, -2);
         warnParams.topMargin = dp(14);
         panel.addView(warn, warnParams);
 
-        keep = choice(activity, "Seguir jugando", true);
+        keep = choice(activity, activity.getString(R.string.keep_playing), true);
         keep.setOnClickListener(v -> close());
         leave = choice(activity, leaveLabel, false);
         leave.setOnClickListener(v -> { if (open) this.onLeave.run(); });
         panel.addView(keep, choiceParams(16));
         panel.addView(leave, choiceParams(10));
 
-        View hints = Gamepad.hintBar(activity, Gamepad.Action.CONFIRM, "Elegir", Gamepad.Action.BACK, "Seguir jugando");
+        View hints = Gamepad.hintBar(activity, Gamepad.Action.CONFIRM, activity.getString(R.string.choose),
+                Gamepad.Action.BACK, activity.getString(R.string.keep_playing));
         if (hints != null) {
             LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(-1, -2);
             hintParams.topMargin = dp(14);

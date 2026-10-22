@@ -18,7 +18,7 @@ import java.util.zip.*;
  *
  *   javac -d out stubs/android/content/Context.java stubs/android/util/AtomicFile.java \
  *     stubs/org/json/*.java LauncherSimulation.java ../apk/app/src/main/java/com/opengoalandroid/jak1/\
- *     {InstallFiles,LauncherStore,GameSaves,ModManager,InstallProgress}.java
+ *     {InstallFiles,LauncherStore,GameSaves,ModManager,InstallProgress,Texts,Versions,Backups}.java
  *   java -cp out com.opengoalandroid.jak1.LauncherSimulation <scratch dir>
  */
 public final class LauncherSimulation {
@@ -44,7 +44,7 @@ public final class LauncherSimulation {
         write(new File(data, "out/" + game + "/iso/GAME.CGO"), "game-" + tag);
         write(new File(data, "iso_data/" + game + "/buildinfo.json"), "{}");
         new File(data, "game/graphics/opengl_renderer/shaders").mkdirs();
-        return LauncherStore.publishInstallation(ctx, game, data, "tools");
+        return LauncherStore.publishInstallation(ctx, game, data, "tools", 1);
     }
 
     /** files: {path, entry, content} triples. */
@@ -290,7 +290,7 @@ public final class LauncherSimulation {
             String error = null;
             try { ModManager.setEnabled(ctx, "jak1", "beta", true); } catch (Exception e) { error = e.getMessage(); }
             check("enabling a second mod on the same file is refused with an explanation",
-                    error != null && error.contains("Desactiva") && read(new File(data, cgo)).equals("alpha")
+                    error != null && error.startsWith("mod_conflict") && read(new File(data, cgo)).equals("alpha")
                             && !mod(ctx, "jak1", "beta").enabled, "error=" + error);
         }
         {
@@ -359,6 +359,82 @@ public final class LauncherSimulation {
             GameSaves.Slot last = GameSaves.latest(ctx, "jak1");
             check("Continuar uses the most recently written slot", last != null && last.index == 2 && last.levelIndex == 6,
                     "slot=" + (last == null ? "none" : last.index));
+        }
+
+        // Updates: version order, as build.gradle computes versionCode. (AI-assisted)
+        check("versions order alpha < beta < rc < release < next patch",
+                Versions.code("0.2.0-alpha.1") < Versions.code("0.2.0-alpha.2")
+                        && Versions.code("0.2.0-alpha.2") < Versions.code("0.2.0-beta")
+                        && Versions.code("0.2.0-beta") < Versions.code("0.2.0-rc.1")
+                        && Versions.code("0.2.0-rc.1") < Versions.code("v0.2.0")
+                        && Versions.code("0.2.0") < Versions.code("0.2.1-alpha.1"), "");
+        check("version codes match build.gradle (0.1.0-beta = 10040, 0.2.0-beta = 20040)", Versions.code("0.1.0-beta") == 10040 && Versions.code("0.2.0-beta") == 20040, "");
+        check("unparseable tags are ignored", Versions.code("nightly") < 0 && Versions.code("1.2") < 0
+                && Versions.code("1.2.3-gamma") < 0, "");
+        {
+            JSONArray releases = new JSONArray();
+            JSONObject apk = new JSONObject().put("name", "Precursor-0.2.0.apk").put("browser_download_url", "https://x/p.apk").put("size", 100);
+            JSONObject alphaApk = new JSONObject().put("name", "Precursor-0.3.0-alpha.1.apk").put("browser_download_url", "https://x/a.apk").put("size", 100);
+            releases.put(new JSONObject().put("tag_name", "v0.3.0-alpha.1").put("prerelease", true).put("assets", new JSONArray().put(alphaApk)));
+            releases.put(new JSONObject().put("tag_name", "v0.4.0").put("draft", true).put("assets", new JSONArray().put(apk)));
+            releases.put(new JSONObject().put("tag_name", "v0.2.5").put("assets", new JSONArray()));
+            releases.put(new JSONObject().put("tag_name", "v0.2.0").put("body", "notes").put("assets", new JSONArray().put(apk)));
+            Versions.Release stable = Versions.newest(releases, "0.1.0-beta", false);
+            Versions.Release alpha = Versions.newest(releases, "0.1.0-beta", true);
+            check("stable channel takes the newest normal release with an APK (not drafts, not pre-releases)",
+                    stable != null && stable.version.equals("0.2.0") && stable.apkUrl.equals("https://x/p.apk"),
+                    "got " + (stable == null ? "none" : stable.version));
+            check("alpha channel also takes pre-releases", alpha != null && alpha.version.equals("0.3.0-alpha.1") && alpha.prerelease,
+                    "got " + (alpha == null ? "none" : alpha.version));
+            check("no update when already on the newest", Versions.newest(releases, "0.2.0", false) == null, "");
+        }
+
+        // Backups of saves and settings. (AI-assisted)
+        {
+            Context ctx = freshApp(base, "backups");
+            File config = new File(ctx.getFilesDir(), "config");
+            check("nothing to back up before the first game", Backups.snapshot(ctx, Backups.UPDATE) == null, "");
+            File save = new File(config, "jak1/OpenGOAL/jak1/saves/BASCUS/bank0.bin");
+            File settings = new File(config, "jak1/OpenGOAL/jak1/settings/pc-settings.gc");
+            write(save, "slot-a");
+            write(settings, "(settings 1)");
+            write(new File(config, "jak1/crash.txt"), "dump");
+            File copy = Backups.snapshot(ctx, Backups.UPDATE);
+            check("a backup holds the saves and settings, not crash dumps",
+                    copy != null && new File(copy, "config/jak1/OpenGOAL/jak1/saves/BASCUS/bank0.bin").isFile()
+                            && new File(copy, "config/jak1/OpenGOAL/jak1/settings/pc-settings.gc").isFile()
+                            && !new File(copy, "config/jak1/crash.txt").exists(), "copy=" + copy);
+            write(save, "slot-b");
+            write(new File(config, "jak1/OpenGOAL/jak1/saves/BASCUS/bank2.bin"), "newer-slot");
+            Backups.restore(ctx, Backups.list(ctx).get(0));
+            check("restoring brings the old save back and keeps files the copy did not have",
+                    read(save).equals("slot-a") && new File(config, "jak1/OpenGOAL/jak1/saves/BASCUS/bank2.bin").isFile(), "");
+            List<Backups.Backup> all = Backups.list(ctx);
+            check("restoring first backs up what was there", all.size() == 2 && all.get(0).reason.equals(Backups.RESTORE)
+                    && read(new File(all.get(0).dir, "config/jak1/OpenGOAL/jak1/saves/BASCUS/bank0.bin")).equals("slot-b"),
+                    "count=" + all.size());
+            for (int i = 0; i < Backups.KEEP + 2; i++) Backups.snapshot(ctx, "manual");
+            check("only the newest copies are kept", Backups.list(ctx).size() == Backups.KEEP, "count=" + Backups.list(ctx).size());
+        }
+
+        // Preparing again after an app update. (AI-assisted)
+        {
+            Context ctx = freshApp(base, "stale");
+            install(ctx, "jak1", "a");
+            check("an installation from this version is current",
+                    LauncherStore.staleness(ctx, "jak1", "tools", 1) == LauncherStore.CURRENT, "");
+            check("new bundled game code only recommends preparing again",
+                    LauncherStore.staleness(ctx, "jak1", "other-tools", 1) == LauncherStore.OUTDATED, "");
+            check("a new game data version requires preparing again",
+                    LauncherStore.staleness(ctx, "jak1", "tools", 2) == LauncherStore.INCOMPATIBLE, "");
+            File tools = new File(ctx.getFilesDir(), "tools");
+            new File(tools, "tools").mkdirs();
+            new File(tools, "old-unused").mkdirs();
+            new File(tools, "current").mkdirs();
+            LauncherStore.discardUnusedTools(ctx, "current");
+            check("unused tool sets are deleted, the installed and current ones kept",
+                    new File(tools, "tools").isDirectory() && new File(tools, "current").isDirectory()
+                            && !new File(tools, "old-unused").exists(), "");
         }
 
         System.out.println();

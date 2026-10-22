@@ -58,20 +58,12 @@
     <!-- Android 13+: shows the installation progress/cancel notification. (AI-assisted) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- TEMP DEBUG: needed only so lldb-server (run as this app's own uid via `run-as`, to attach
-         to the hung EE thread and get a real symbolized backtrace - see the development notes' "second
-         distinct hang bug") can bind a loopback TCP socket for the host lldb client to connect to
-         over `adb forward`. Without this, socket() bind fails with EPERM regardless of POSIX
-         permissions - Android's netd per-UID firewall blocks it for any app that doesn't declare
-         INTERNET. Remove once this debugging session is done; the game itself needs no network
-         access. -->
+    <!-- The in-app updater reads Precursor's GitHub releases and downloads the new APK (Updater.java).
+         It is also what lets lldb-server, run as this app's uid, open a loopback socket for
+         debugging. The game itself never uses the network. (AI-assisted) -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Allow access to Internet -->
-    <!-- if you want to connect to the network or internet, uncomment this. -->
-    <!--
-    <uses-permission android:name="android.permission.INTERNET" />
-    -->
+    <!-- Hands a downloaded update to Android's installer; the player confirms each install. (AI-assisted) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Create a Java class extending SDLActivity and place it in a
          directory under app/src/main/java matching the package, e.g. app/src/main/java/com/gamemaker/game/MyGame.java
@@ -102,6 +94,11 @@
             android:exported="false"
             android:theme="@style/LauncherTheme">
         </activity>
+        <!-- Language, updates, backups, log and about. (AI-assisted) -->
+        <activity android:name=".SettingsActivity"
+            android:exported="false"
+            android:theme="@style/LauncherTheme">
+        </activity>
         <service android:name=".InstallService"
             android:exported="false"
             android:process=":installer"
@@ -125,7 +122,7 @@
             android:label="${gameLabel}"
             android:alwaysRetainTaskState="true"
             android:launchMode="singleInstance"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:preferMinimalPostProcessing="true"
             android:exported="true"
