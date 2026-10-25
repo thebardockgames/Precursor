@@ -182,6 +182,9 @@
     <string name="touch_always_desc">Pratique si tu alternes entre la manette et l\'écran.</string>
     <string name="touch_never">Masqués</string>
     <string name="touch_never_desc">Manette uniquement. Tu peux les afficher en jeu avec le bouton AFFICHER en haut.</string>
+    <string name="overlay_title">Boutons à l\'écran</string>
+    <string name="hide_touch_buttons">Masquer les boutons AFFICHER et MENU et le compteur d\'IPS</string>
+    <string name="hide_touch_buttons_desc">Rien ne s\'affiche par-dessus le jeu. Choisis Masqués ci-dessus pour retirer aussi les commandes tactiles. Ouvre le menu avec Retour (bouton ou geste) ou Select + Start sur la manette.</string>
     <string name="remove_title">Supprimer l\'installation</string>
     <string name="remove_hint">Libère l\'espace utilisé par %1$s. Tes sauvegardes et l\'ISO d\'origine sont conservées ; pour rejouer, il faudra ajouter l\'ISO de nouveau.</string>
     <string name="remove_button">Supprimer %1$s</string>

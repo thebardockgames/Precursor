@@ -38,6 +38,11 @@ public final class GameOptionsActivity extends Activity {
         return context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("showFps_" + game, true);
     }
 
+    /** Hides the in-game SHOW and MENU buttons and the FPS counter, for a screen with no overlays. (AI-assisted) */
+    static boolean hideTouchButtons(Context context, String game) {
+        return context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("hideTouchButtons_" + game, false);
+    }
+
     static boolean sustainedPerformance(Context context, String game) {
         return context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("sustained_" + game, false);
     }
@@ -425,6 +430,11 @@ public final class GameOptionsActivity extends Activity {
             card.setOnClickListener(v -> { prefs.edit().putString(TOUCH_MODE, option[0]).apply(); showTab(TAB_CONTROLS); });
             UiKit.margin(this, content, card, 12);
         }
+
+        subheading(getString(R.string.overlay_title), null);
+        boolean hide = hideTouchButtons(this, game);
+        choiceCard(getString(R.string.hide_touch_buttons), getString(R.string.hide_touch_buttons_desc), hide, true,
+                () -> { prefs.edit().putBoolean("hideTouchButtons_" + game, !hide).apply(); showTab(TAB_CONTROLS); });
     }
 
     // ---------------------------------------------------------------- graphics

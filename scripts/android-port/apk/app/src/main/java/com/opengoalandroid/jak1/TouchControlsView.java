@@ -18,6 +18,7 @@ final class TouchControlsView extends View {
     private float scale = 1, offsetX, offsetY;
     private int insetLeft, insetTop, insetRight, insetBottom;
     private boolean controlsVisible = true;
+    private boolean topButtons = true;
     private Runnable onMenu;
     private long lastFrames, lastSampleTime;
     private String fpsLabel = "FPS: --";
@@ -85,6 +86,15 @@ final class TouchControlsView extends View {
         releaseAll();
     }
 
+    /**
+     * The game option "Hide the SHOW and MENU buttons too": nothing left on screen for players on a
+     * handheld or with a controller. The menu stays one Back gesture or Select+Start away. (AI-assisted)
+     */
+    void setTopButtonsVisible(boolean visible) {
+        topButtons = visible;
+        invalidate();
+    }
+
     /** Called by the MENÚ button, which stays visible even with the pad hidden. (AI-assisted) */
     void setOnMenu(Runnable menu) {
         onMenu = menu;
@@ -148,11 +158,11 @@ final class TouchControlsView extends View {
         float x = (event.getX(index) - offsetX) / scale;
         float y = (event.getY(index) - offsetY) / scale;
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
-            if (Math.abs(x - 500) < 35 && Math.abs(y - 32) < 22) {
+            if (topButtons && Math.abs(x - 500) < 35 && Math.abs(y - 32) < 22) {
                 controlsVisible = !controlsVisible;
                 releaseAll();
                 performClick();
-            } else if (onMenu != null && Math.abs(x - 590) < 35 && Math.abs(y - 32) < 22) {
+            } else if (topButtons && onMenu != null && Math.abs(x - 590) < 35 && Math.abs(y - 32) < 22) {
                 releaseAll();
                 onMenu.run();
             } else if (controlsVisible) {
@@ -191,11 +201,13 @@ final class TouchControlsView extends View {
             canvas.drawRoundRect(182, 15, 340, 47, 8, 8, paint);
             text(canvas, fpsLabel, 261, 31, 12, Color.rgb(160, 255, 170));
         }
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.argb(85, 10, 18, 28));
-        canvas.drawRoundRect(465, 10, 535, 54, 12, 12, paint);
-        text(canvas, controlsVisible ? hideLabel : showLabel, 500, 32, 10, Color.argb(180, 255, 255, 255));
-        if (onMenu != null) {
+        if (topButtons) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(85, 10, 18, 28));
+            canvas.drawRoundRect(465, 10, 535, 54, 12, 12, paint);
+            text(canvas, controlsVisible ? hideLabel : showLabel, 500, 32, 10, Color.argb(180, 255, 255, 255));
+        }
+        if (topButtons && onMenu != null) {
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(Color.argb(85, 10, 18, 28));
             canvas.drawRoundRect(555, 10, 625, 54, 12, 12, paint);

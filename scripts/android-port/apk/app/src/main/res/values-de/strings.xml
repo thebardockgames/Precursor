@@ -182,6 +182,9 @@
     <string name="touch_always_desc">Praktisch, wenn du zwischen Controller und Bildschirm wechselst.</string>
     <string name="touch_never">Ausgeblendet</string>
     <string name="touch_never_desc">Nur Controller. Im Spiel kannst du sie mit der Taste TASTEN oben einblenden.</string>
+    <string name="overlay_title">Tasten auf dem Bildschirm</string>
+    <string name="hide_touch_buttons">TASTEN, MENÜ und FPS-Anzeige ausblenden</string>
+    <string name="hide_touch_buttons_desc">Über dem Spiel wird nichts angezeigt. Wähle oben Ausgeblendet, um auch die Touch-Steuerung zu entfernen. Das Menü öffnest du mit Zurück (Taste oder Geste) oder Select + Start am Controller.</string>
     <string name="remove_title">Installation entfernen</string>
     <string name="remove_hint">Gibt den von %1$s belegten Speicher frei. Deine Spielstände und die Original-ISO bleiben erhalten; um wieder zu spielen, musst du die ISO erneut hinzufügen.</string>
     <string name="remove_button">%1$s entfernen</string>

@@ -182,6 +182,9 @@
     <string name="touch_always_desc">Útil si alternas entre mando y pantalla.</string>
     <string name="touch_never">Ocultos</string>
     <string name="touch_never_desc">Solo mando. Puedes mostrarlos en el juego con el botón MANDO de arriba.</string>
+    <string name="overlay_title">Botones en pantalla</string>
+    <string name="hide_touch_buttons">Ocultar los botones MANDO y MENÚ y el contador de FPS</string>
+    <string name="hide_touch_buttons_desc">No se dibuja nada encima del juego. Elige Ocultos arriba para quitar también los controles táctiles. Abre el menú con Atrás (botón o gesto) o Select + Start en el mando.</string>
     <string name="remove_title">Borrar instalación</string>
     <string name="remove_hint">Libera el espacio de %1$s. Tus partidas guardadas y la ISO original se conservan; para volver a jugar tendrás que agregar la ISO otra vez.</string>
     <string name="remove_button">Borrar %1$s</string>

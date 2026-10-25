@@ -182,6 +182,9 @@
     <string name="touch_always_desc">Utile se passi spesso dal controller allo schermo.</string>
     <string name="touch_never">Nascosti</string>
     <string name="touch_never_desc">Solo controller. Puoi mostrarli nel gioco con il pulsante MOSTRA in alto.</string>
+    <string name="overlay_title">Pulsanti sullo schermo</string>
+    <string name="hide_touch_buttons">Nascondi i pulsanti MOSTRA e MENU e il contatore FPS</string>
+    <string name="hide_touch_buttons_desc">Non viene disegnato nulla sopra il gioco. Scegli Nascosti qui sopra per togliere anche i controlli touch. Apri il menu con Indietro (tasto o gesto) o Select + Start sul controller.</string>
     <string name="remove_title">Rimuovi installazione</string>
     <string name="remove_hint">Libera lo spazio occupato da %1$s. I tuoi salvataggi e la ISO originale vengono conservati; per giocare di nuovo dovrai aggiungere ancora la ISO.</string>
     <string name="remove_button">Rimuovi %1$s</string>

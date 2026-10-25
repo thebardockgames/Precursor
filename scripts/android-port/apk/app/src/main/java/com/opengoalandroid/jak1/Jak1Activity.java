@@ -130,6 +130,8 @@ public class Jak1Activity extends SDLActivity {
     private void applyTouchMode() {
         String mode = getSharedPreferences(GameOptionsActivity.PREFS, MODE_PRIVATE)
                 .getString(GameOptionsActivity.TOUCH_MODE, "auto");
+        touchControls.setTopButtonsVisible(!GameOptionsActivity.hideTouchButtons(this,
+                BuildConfig.OPENGOAL_LAUNCHER ? selectedGame : BuildConfig.OPENGOAL_GAME));
         if ("always".equals(mode)) { touchControls.setControlsVisible(true); return; }
         if ("never".equals(mode)) { touchControls.setControlsVisible(false); return; }
         touchControls.setControlsVisible(Gamepad.connected() == null);
@@ -149,7 +151,8 @@ public class Jak1Activity extends SDLActivity {
     private void applyGraphics() {
         String game = BuildConfig.OPENGOAL_LAUNCHER ? selectedGame : BuildConfig.OPENGOAL_GAME;
         nativeSetRenderScale(GameOptionsActivity.renderScale(this, game));
-        touchControls.setShowFps(GameOptionsActivity.showFps(this, game));
+        // "Hide the on-screen buttons" leaves nothing over the game, the FPS counter included.
+        touchControls.setShowFps(GameOptionsActivity.showFps(this, game) && !GameOptionsActivity.hideTouchButtons(this, game));
         if (GameOptionsActivity.sustainedPerformance(this, game)
                 && getSystemService(android.os.PowerManager.class).isSustainedPerformanceModeSupported())
             getWindow().setSustainedPerformanceMode(true);

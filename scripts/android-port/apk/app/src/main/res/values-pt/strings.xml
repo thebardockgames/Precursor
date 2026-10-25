@@ -182,6 +182,9 @@
     <string name="touch_always_desc">Útil se você alterna entre o controle e a tela.</string>
     <string name="touch_never">Ocultos</string>
     <string name="touch_never_desc">Só controle. Você pode mostrá-los no jogo com o botão MOSTRAR, no topo.</string>
+    <string name="overlay_title">Botões na tela</string>
+    <string name="hide_touch_buttons">Ocultar os botões MOSTRAR e MENU e o contador de FPS</string>
+    <string name="hide_touch_buttons_desc">Nada é desenhado sobre o jogo. Escolha Ocultos acima para remover também os controles de toque. Abra o menu com Voltar (botão ou gesto) ou Select + Start no controle.</string>
     <string name="remove_title">Remover instalação</string>
     <string name="remove_hint">Libera o espaço usado por %1$s. Seus jogos salvos e a ISO original são mantidos; para jogar de novo, você terá que adicionar a ISO outra vez.</string>
     <string name="remove_button">Remover %1$s</string>

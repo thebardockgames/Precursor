@@ -185,6 +185,9 @@
     <string name="touch_always_desc">Useful if you switch between controller and screen.</string>
     <string name="touch_never">Hidden</string>
     <string name="touch_never_desc">Controller only. You can show them in the game with the SHOW button at the top.</string>
+    <string name="overlay_title">On-screen buttons</string>
+    <string name="hide_touch_buttons">Hide the SHOW and MENU buttons and the FPS counter</string>
+    <string name="hide_touch_buttons_desc">Nothing is drawn over the game. Choose Hidden above to also remove the touch controls. Open the menu with Back (button or gesture) or Select + Start on the controller.</string>
     <string name="remove_title">Remove installation</string>
     <string name="remove_hint">Frees the space used by %1$s. Your saves and the original ISO are kept; to play again you will have to add the ISO again.</string>
     <string name="remove_button">Remove %1$s</string>
