@@ -34,7 +34,7 @@ def buildTime = new Date().format("yyyy-MM-dd HH:mm", TimeZone.getTimeZone('UTC'
 // app, so the updater and Android agree on the order: alpha.N < beta.N < rc.N < the release.
 // (AI-assisted)
 // -PprecursorVersion=... overrides it for test builds (e.g. trying the updater).
-def precursorVersion = providers.gradleProperty('precursorVersion').getOrElse('0.2.0-beta')
+def precursorVersion = providers.gradleProperty('precursorVersion').getOrElse('0.2.1-beta')
 def precursorVersionCode = { String version ->
     def m = version =~ /^(\d{1,2})\.(\d{1,2})\.(\d{1,2})(?:-(alpha|beta|rc)(?:\.(\d{1,2}))?)?$/
     if (!m.matches()) throw new GradleException("Version must look like 1.2.3, 1.2.3-alpha.4, -beta or -rc: " + version)
