@@ -206,14 +206,20 @@ final class ReportBuilder {
     /**
      * The launcher found an installation still marked running with no installer alive: append to the
      * install log how Android says that process ended, and keep its native crash dump for the report.
-     * Returns the ApplicationExitInfo reason, or 0 if unknown. (AI-assisted)
+     * Without a pid (installations started by 0.2.0-beta did not record it) the last exit of the
+     * installer process is used instead. Returns the ApplicationExitInfo reason, or 0 if unknown.
+     * (AI-assisted)
      */
     static int captureInstallerExit(Context context, int pid) {
         StringBuilder out = new StringBuilder("\n=== Cómo terminó el instalador (pid ").append(pid).append(") ===\n");
         int reason = 0;
-        if (Build.VERSION.SDK_INT >= 30 && pid > 0) {
+        if (Build.VERSION.SDK_INT >= 30) {
             ActivityManager manager = context.getSystemService(ActivityManager.class);
-            for (ApplicationExitInfo info : manager.getHistoricalProcessExitReasons(context.getPackageName(), pid, 1)) {
+            List<ApplicationExitInfo> exits = new ArrayList<>();
+            for (ApplicationExitInfo info : manager.getHistoricalProcessExitReasons(context.getPackageName(), Math.max(pid, 0), pid > 0 ? 1 : 16)) {
+                if ((context.getPackageName() + ":installer").equals(info.getProcessName())) { exits.add(info); break; }
+            }
+            for (ApplicationExitInfo info : exits) {
                 reason = info.getReason();
                 out.append(info).append('\n');
                 out.append("Motivo: ").append(exitReasonName(reason)).append(", estado ").append(info.getStatus())
