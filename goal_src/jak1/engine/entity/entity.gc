@@ -818,7 +818,12 @@
   ;;(birth-log "call to birth! on ~A~%" this)
   (let* ((entity-type (-> this etype))
          (info (entity-info-lookup entity-type))
-         (entity-process (get-process *default-dead-pool* entity-type (if info (-> info heap-size) #x4000))))
+         ;; ARM64: stack-size-set! never goes below 512 there (see gkernel.gc), and that comes out of the
+         ;; process heap. The tight per-type sizes in *entity-info* (launcher is only #x400) then run out
+         ;; before init finishes (Sentinel Beach launcher crash), so give every entity that much more. (AI-assisted)
+         (entity-process (get-process *default-dead-pool*
+                                      entity-type
+                                      (+ (if info (-> info heap-size) #x4000) (#if (eq? TARGET_ARCH 'arm64) 512 0)))))
     (cond
       ((not entity-process) (birth-log "could not birth because there is no process.~%"))
       ((begin
