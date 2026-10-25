@@ -105,6 +105,7 @@ class Merc2 {
     std::string to_string() const;
   };
   u32 alloc_bones(int count, ShaderMercMat* data);
+  void bind_bones_for_adreno(u32 first_bone);
   static constexpr int MAX_SKEL_BONES = 128;
   static constexpr int BONE_VECTORS_PER_BONE = 7;
   static constexpr int MAX_SHADER_BONE_VECTORS = 1024 * 32;  // ??

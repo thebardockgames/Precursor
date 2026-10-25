@@ -1215,6 +1215,20 @@ void Merc2::flush_draw_buckets(SharedRenderState* render_state,
   m_next_mod_vtx_buffer = 0;
 }
 
+/*!
+ * Old Adreno drivers (Adreno 618, Poco X3) keep the bones block of the merc shaders at binding 0
+ * despite glUniformBlockBinding(..., 1) in Shader.cpp, find nothing bound there and crash inside
+ * glDrawElements. Bind the same range at 0 as well; binding 1 stays the real one. (AI-assisted)
+ */
+void Merc2::bind_bones_for_adreno(u32 first_bone) {
+#ifdef __ANDROID__
+  glBindBufferRange(GL_UNIFORM_BUFFER, 0, m_bones_buffer, sizeof(math::Vector4f) * first_bone,
+                    128 * sizeof(ShaderMercMat));
+#else
+  (void)first_bone;
+#endif
+}
+
 void Merc2::do_draws(const Draw* draw_array,
                      const LevelData* lev,
                      u32 num_draws,
@@ -1327,6 +1341,7 @@ void Merc2::do_draws(const Draw* draw_array,
       prof.add_tri(draw.num_triangles * 2);
       glBindBufferRange(GL_UNIFORM_BUFFER, 1, m_bones_buffer,
                         sizeof(math::Vector4f) * draw.first_bone, 128 * sizeof(ShaderMercMat));
+      bind_bones_for_adreno(draw.first_bone);
       // draw rgb
       const auto& l1_dir = m_lights_buffer[draw.light_idx].direction1;
       math::Vector4f l1_dir_f(l1_dir.x(), l1_dir.y(), l1_dir.z(), 1);
@@ -1349,6 +1364,7 @@ void Merc2::do_draws(const Draw* draw_array,
       prof.add_tri(draw.num_triangles);
       glBindBufferRange(GL_UNIFORM_BUFFER, 1, m_bones_buffer,
                         sizeof(math::Vector4f) * draw.first_bone, 128 * sizeof(ShaderMercMat));
+      bind_bones_for_adreno(draw.first_bone);
       glDrawElements(draw.no_strip ? GL_TRIANGLES : GL_TRIANGLE_STRIP, draw.index_count,
                      GL_UNSIGNED_INT, (void*)(sizeof(u32) * draw.first_index));
     }
