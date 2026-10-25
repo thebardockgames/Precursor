@@ -89,6 +89,8 @@ public final class SettingsActivity extends Activity {
             sideScroll.setBackgroundColor(0xFF0C1319);
             row.addView(sideScroll, new LinearLayout.LayoutParams(dp(250), -1));
             content.setPadding(dp(24), dp(24), dp(24), dp(48));
+            UiKit.clearOfCutout(content, UiKit.RIGHT | UiKit.TOP | UiKit.BOTTOM);
+            UiKit.clearOfCutout(side, UiKit.LEFT | UiKit.TOP | UiKit.BOTTOM);
             row.addView(scroll, new LinearLayout.LayoutParams(0, -1, 1));
             frame.addView(row, new FrameLayout.LayoutParams(-1, -1));
         } else {
@@ -108,6 +110,7 @@ public final class SettingsActivity extends Activity {
             LinearLayout title = new LinearLayout(this);
             title.setGravity(Gravity.CENTER_VERTICAL);
             title.setPadding(dp(18), 0, dp(18), dp(12));
+            UiKit.clearOfCutout(title, UiKit.LEFT | UiKit.TOP | UiKit.RIGHT);
             title.addView(backButton());
             LinearLayout names = UiKit.column(this);
             names.setPadding(dp(12), 0, 0, 0);
@@ -126,6 +129,7 @@ public final class SettingsActivity extends Activity {
             chips.setClipChildren(false);
             LinearLayout chipRow = new LinearLayout(this);
             chipRow.setPadding(dp(18), dp(6), dp(18), dp(10));
+            UiKit.clearOfCutout(chipRow, UiKit.LEFT | UiKit.RIGHT);
             for (int i = 0; i < TABS.length; i++) {
                 LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-2, -2);
                 if (i > 0) params.leftMargin = dp(8);
@@ -140,6 +144,7 @@ public final class SettingsActivity extends Activity {
                 Gamepad.Action.PREV, "", Gamepad.Action.NEXT, getString(R.string.hint_section));
         if (hints != null) {
             hints.setPadding(dp(16), dp(6), dp(20), dp(10));
+            UiKit.clearOfCutout(hints, UiKit.LEFT | UiKit.RIGHT | UiKit.BOTTOM);
             hints.setBackgroundColor(0xCC0B1116);
             frame.addView(hints, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         }

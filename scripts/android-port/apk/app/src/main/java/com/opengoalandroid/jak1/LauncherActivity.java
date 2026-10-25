@@ -224,6 +224,7 @@ public final class LauncherActivity extends Activity {
             LinearLayout row = new LinearLayout(this);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(36), dp(20), dp(36), dp(40));
+            UiKit.clearOfCutout(row, UiKit.ALL);
             LinearLayout left = column();
             left.setGravity(Gravity.CENTER_VERTICAL);
             left.addView(lockup(20));
@@ -244,6 +245,7 @@ public final class LauncherActivity extends Activity {
             LinearLayout col = column();
             col.setGravity(Gravity.CENTER);
             col.setPadding(dp(28), dp(24), dp(28), dp(56));
+            UiKit.clearOfCutout(col, UiKit.ALL);
             int orbSize = Math.min(screenWidth() / 2, dp(240));
             col.addView(orb, new LinearLayout.LayoutParams(orbSize, orbSize));
             col.setClipChildren(false);
@@ -619,6 +621,7 @@ public final class LauncherActivity extends Activity {
 
         LinearLayout col = column();
         col.setPadding(dp(wide ? 32 : 20), dp(wide ? 10 : 22), dp(wide ? 32 : 20), dp(wide ? 26 : 40));
+        UiKit.clearOfCutout(col, UiKit.ALL);
         col.addView(lockup(wide ? 16 : 22));
 
         heroBox = column();
@@ -1424,6 +1427,7 @@ public final class LauncherActivity extends Activity {
         if (hints == null) return;
         hints.setTag("hints");
         hints.setPadding(dp(16), dp(6), dp(20), dp(10));
+        UiKit.clearOfCutout(hints, UiKit.LEFT | UiKit.RIGHT | UiKit.BOTTOM);
         frame.addView(hints, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
     }
 

@@ -24,9 +24,9 @@ final class UiKit {
 
     /**
      * Full screen like the game: the status and navigation bars are hidden (a swipe from the edge
-     * shows them for a moment) and the screen reaches into the camera cutout, while the content is
-     * kept clear of the cutout. Call from onCreate and again when the window regains focus.
-     * (AI-assisted)
+     * shows them for a moment) and the screen, backgrounds included, reaches into the camera
+     * cutout. Buttons and text are kept clear of it with clearOfCutout. Call from onCreate and
+     * again when the window regains focus. (AI-assisted)
      */
     static void immersive(Activity activity) {
         android.view.Window window = activity.getWindow();
@@ -44,24 +44,39 @@ final class UiKit {
                 controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
                 controller.hide(android.view.WindowInsets.Type.systemBars());
             }
-            content.setOnApplyWindowInsetsListener((v, insets) -> {
-                android.graphics.Insets cut = insets.getInsets(android.view.WindowInsets.Type.displayCutout());
-                v.setPadding(cut.left, cut.top, cut.right, cut.bottom);
-                return insets;
-            });
         } else {
             window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                     | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-            content.setOnApplyWindowInsetsListener((v, insets) -> {
-                android.view.DisplayCutout cut = insets.getDisplayCutout();
-                if (cut != null) v.setPadding(cut.getSafeInsetLeft(), cut.getSafeInsetTop(), cut.getSafeInsetRight(), cut.getSafeInsetBottom());
-                else v.setPadding(0, 0, 0, 0);
-                return insets;
-            });
         }
         content.requestApplyInsets();
+    }
+
+    static final int LEFT = 1, TOP = 2, RIGHT = 4, BOTTOM = 8, ALL = LEFT | TOP | RIGHT | BOTTOM;
+
+    /**
+     * Adds the camera cutout on the given edges to the view's own padding, following rotation (the
+     * cutout changes sides). For the layer holding buttons and text, so the background under it
+     * can still reach the edge of the screen. Call after the view's own padding is set. (AI-assisted)
+     */
+    static void clearOfCutout(View view, int edges) {
+        int left = view.getPaddingLeft(), top = view.getPaddingTop();
+        int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
+        view.setOnApplyWindowInsetsListener((v, insets) -> {
+            int l = 0, t = 0, r = 0, b = 0;
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets cut = insets.getInsets(android.view.WindowInsets.Type.displayCutout());
+                l = cut.left; t = cut.top; r = cut.right; b = cut.bottom;
+            } else if (insets.getDisplayCutout() != null) {
+                android.view.DisplayCutout cut = insets.getDisplayCutout();
+                l = cut.getSafeInsetLeft(); t = cut.getSafeInsetTop(); r = cut.getSafeInsetRight(); b = cut.getSafeInsetBottom();
+            }
+            v.setPadding(left + ((edges & LEFT) != 0 ? l : 0), top + ((edges & TOP) != 0 ? t : 0),
+                    right + ((edges & RIGHT) != 0 ? r : 0), bottom + ((edges & BOTTOM) != 0 ? b : 0));
+            return insets;
+        });
+        view.requestApplyInsets();
     }
 
     static int dp(Activity activity, int value) {
