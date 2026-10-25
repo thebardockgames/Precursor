@@ -99,6 +99,7 @@ public final class LauncherActivity extends Activity {
         }
         rebuild();
         new Thread(() -> {
+            ReportBuilder.noteInstallerExit(this); // before a new installation overwrites install.log
             LauncherStore.discardStaleWork(this);
             LauncherStore.discardUnusedTools(this, currentTools());
             Updater.discardDownloads(this);
@@ -543,7 +544,9 @@ public final class LauncherActivity extends Activity {
         } else if ("cancelled".equals(state)) {
             goWizard(W_ISO);
         } else {
-            errorText = "running".equals(state) ? getString(R.string.prepare_interrupted) : message;
+            errorText = !"running".equals(state) ? message
+                    : ReportBuilder.noteInstallerExit(this) == android.app.ApplicationExitInfo.REASON_LOW_MEMORY
+                    ? getString(R.string.prepare_low_memory) : getString(R.string.prepare_interrupted);
             goWizard(W_ERROR);
         }
     }

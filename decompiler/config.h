@@ -175,6 +175,9 @@ struct Config {
 
   std::vector<std::string> levels_to_extract;
   bool levels_extract;
+  // How many levels to extract at once; each one in flight holds its own copy of the level data.
+  // 0 extracts every level at the same time. (AI-assisted)
+  int levels_extract_threads = 0;
   bool save_texture_pngs = false;
   bool rip_streamed_audio = false;
 

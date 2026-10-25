@@ -63,6 +63,7 @@
     <string name="cancel_prepare_body">Alles bisher Vorbereitete wird gelöscht. Deine ISO bleibt unberührt.</string>
     <string name="keep_preparing">Weiter vorbereiten</string>
     <string name="prepare_interrupted">Die Vorbereitung wurde unterbrochen (Android hat den Prozess beendet). Wähle die ISO erneut aus.</string>
+    <string name="prepare_low_memory">Android hat die Vorbereitung beendet, weil dem Telefon der Arbeitsspeicher ausging. Schließe andere Apps, starte das Telefon neu und wähle die ISO erneut. Passiert es wieder, tippe auf Melden: Das Protokoll zeigt jetzt, wie viel Speicher verwendet wurde.</string>
     <string name="could_not_start">Start nicht möglich: %1$s</string>
 
     <!-- Installation stages -->

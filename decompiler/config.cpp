@@ -330,6 +330,9 @@ Config make_config_via_json(nlohmann::json& json) {
 
   config.levels_to_extract = inputs_json.at("levels_to_extract").get<std::vector<std::string>>();
   config.levels_extract = json.at("levels_extract").get<bool>();
+  if (json.contains("levels_extract_threads")) {
+    config.levels_extract_threads = json.at("levels_extract_threads").get<int>();
+  }
   if (json.contains("save_texture_pngs")) {
     config.save_texture_pngs = json.at("save_texture_pngs").get<bool>();
   }

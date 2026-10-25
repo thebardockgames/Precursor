@@ -1,5 +1,6 @@
 #include "extract_level.h"
 
+#include <algorithm>
 #include <set>
 #include <thread>
 
@@ -421,6 +422,10 @@ void extract_all_levels(const ObjectFileDB& db,
   if (tex_db.replace_texture_dir) {
     num_workers = 1;
   }
+  if (config.levels_extract_threads > 0) {
+    num_workers = std::min(num_workers, config.levels_extract_threads);
+  }
+  lg::info("Extracting {} levels with {} workers", dgo_names.size(), num_workers);
 
   SimpleThreadGroup threads;
   threads.run(

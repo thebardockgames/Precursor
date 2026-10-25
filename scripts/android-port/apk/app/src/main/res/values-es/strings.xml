@@ -63,6 +63,7 @@
     <string name="cancel_prepare_body">Se borra lo preparado hasta ahora. Tu ISO no se toca.</string>
     <string name="keep_preparing">Seguir preparando</string>
     <string name="prepare_interrupted">La preparación se interrumpió (Android cerró el proceso). Vuelve a elegir la ISO.</string>
+    <string name="prepare_low_memory">Android cerró la preparación porque el teléfono se quedó sin RAM. Cierra otras apps, reinicia el teléfono y vuelve a elegir la ISO. Si vuelve a pasar, toca Reportar: el registro ahora indica cuánta memoria se usó.</string>
     <string name="could_not_start">No se pudo iniciar: %1$s</string>
 
     <!-- Installation stages -->

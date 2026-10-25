@@ -34,7 +34,8 @@ Java_com_opengoalandroid_jak1_InstallService_nativeProbe(JNIEnv* env, jobject, j
 // One invocation per :installer process, separate from SDL and its global state. (AI-assisted)
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_opengoalandroid_jak1_InstallService_nativeInstall(
-    JNIEnv* env, jobject service, jstring project, jstring iso, jstring log, jstring expected) {
+    JNIEnv* env, jobject service, jstring project, jstring iso, jstring log, jstring expected,
+    jstring decomp_config) {
   auto string_value = [env](jstring value) {
     const char* chars = env->GetStringUTFChars(value, nullptr);
     if (!chars) throw std::runtime_error("No se pudo leer la ruta");
@@ -47,6 +48,8 @@ Java_com_opengoalandroid_jak1_InstallService_nativeInstall(
     const fs::path input = string_value(iso);
     const auto logfile = string_value(log);
     const auto expected_game = string_value(expected);
+    // Decompiler config override sized by InstallService for this phone's free RAM. (AI-assisted)
+    const auto config_override = string_value(decomp_config);
     if (!freopen(logfile.c_str(), "a", stdout) || !freopen(logfile.c_str(), "a", stderr)) {
       throw std::runtime_error("No se pudo abrir el registro");
     }
@@ -98,7 +101,8 @@ Java_com_opengoalandroid_jak1_InstallService_nativeInstall(
     file_util::write_text_file((data / "buildinfo.json").string(), buildinfo.dump(2));
     fs::remove(input);  // Only our private copy, never the selected document.
     progress(game, "Preparando escenarios, texturas y audio…");
-    if (decompile(data, game, "{}") != ExtractorErrorCode::SUCCESS) {
+    lg::info("Decompiler config override: {}", config_override);
+    if (decompile(data, game, config_override) != ExtractorErrorCode::SUCCESS) {
       throw std::runtime_error("No se pudieron preparar los recursos del juego");
     }
     progress(game, "Compilando el juego para el teléfono…");

@@ -26,7 +26,8 @@ public final class InstallService extends Service {
     private FileLock lock;
     private PowerManager.WakeLock wakeLock;
     private native String nativeProbe(int descriptor, String expectedGame) throws IOException;
-    private native String nativeInstall(String root, String iso, String log, String expectedGame) throws IOException;
+    private native String nativeInstall(String root, String iso, String log, String expectedGame,
+                                        String decompConfig) throws IOException;
 
     @Override public IBinder onBind(Intent intent) { return null; }
 
@@ -92,7 +93,7 @@ public final class InstallService extends Service {
         if (ending) return;
         LauncherStore.write(LauncherStore.job(this), new JSONObject()
                 .put("state", state).put("stage", stage).put("message", text).put("game", game)
-                .put("operation", removing ? "remove" : "install")
+                .put("operation", removing ? "remove" : "install").put("pid", android.os.Process.myPid())
                 .put("percent", percent).put("updated", System.currentTimeMillis()));
         getSystemService(NotificationManager.class).notify(NOTIFICATION, notification(text));
     }
@@ -225,8 +226,11 @@ public final class InstallService extends Service {
             InstallFiles.removeTree(getFilesDir(), work);
             InstallFiles.mkdir(work);
             try (FileOutputStream log = new FileOutputStream(LauncherStore.log(this))) {
-                log.write("Precursor installer, powered by OpenGOAL (AI-assisted)\n".getBytes(StandardCharsets.UTF_8));
+                log.write(("Precursor installer, powered by OpenGOAL (AI-assisted)\nJuego: " + game + "\n"
+                        + ReportBuilder.deviceInfo(this) + ReportBuilder.memoryLine(this) + "\n")
+                        .getBytes(StandardCharsets.UTF_8));
             }
+            startMemoryMonitor();
             update("running", -1, getString(R.string.install_checking_iso, title(game)), -1);
             System.loadLibrary("opengoal_installer");
             try (ParcelFileDescriptor descriptor = getContentResolver().openFileDescriptor(uri, "r")) {
@@ -245,7 +249,7 @@ public final class InstallService extends Service {
             File iso = new File(work, "input.iso");
             copyIso(uri, iso);
             game = nativeInstall(data.getAbsolutePath(), iso.getAbsolutePath(),
-                    LauncherStore.log(this).getAbsolutePath(), game);
+                    LauncherStore.log(this).getAbsolutePath(), game, decompilerConfig());
             if (!InstallFiles.validGame(game)) throw new IOException(getString(R.string.install_unknown_game));
             update("running", 4, getString(R.string.install_finishing), -1);
             // Keep runtime outputs and metadata. Original ISO remains untouched in its provider.
@@ -271,6 +275,62 @@ public final class InstallService extends Service {
             try { getContentResolver().releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); }
             catch (Exception ignored) { }
         }
+    }
+
+    // Peak before level extraction is ~1.7 GB on Jak 1, and every level extracted at once adds
+    // up to ~250 MB on top. Extracting all ~25 together peaked at 3.7 GB, which Android kills on
+    // phones with less RAM. Size the workers to the RAM free right now. (AI-assisted)
+    private static final long BASE_PEAK = 2_000L << 20, PER_LEVEL = 256L << 20;
+
+    private String decompilerConfig() throws Exception {
+        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+        getSystemService(ActivityManager.class).getMemoryInfo(memory);
+        int cores = Runtime.getRuntime().availableProcessors();
+        long spare = memory.availMem - memory.threshold - BASE_PEAK;
+        int workers = (int) Math.max(1, Math.min(cores, spare / PER_LEVEL));
+        if (getSystemService(ActivityManager.class).isLowRamDevice()) workers = 1;
+        try (PrintWriter log = new PrintWriter(new FileOutputStream(LauncherStore.log(this), true))) {
+            log.println("RAM: " + (memory.totalMem >> 20) + " MB total, " + (memory.availMem >> 20)
+                    + " MB libres, umbral " + (memory.threshold >> 20) + " MB; " + cores
+                    + " núcleos -> " + workers + " niveles a la vez");
+        }
+        return new JSONObject().put("levels_extract_threads", workers).toString();
+    }
+
+    /**
+     * If Android kills this process (usually for RAM) nothing else gets written, so the last of these
+     * lines tells how much memory the installer and the phone had at that moment. Logged when the
+     * process grew or shrank by 64 MB, and at least every 30 s. (AI-assisted)
+     */
+    private void startMemoryMonitor() {
+        Thread monitor = new Thread(() -> {
+            long lastRss = -1, lastTime = 0;
+            while (!ending) {
+                long rss = ReportBuilder.procKb("/proc/self/status", "VmRSS").get("VmRSS") >> 10;
+                long now = SystemClock.elapsedRealtime();
+                if (lastRss < 0 || Math.abs(rss - lastRss) >= 64 || now - lastTime >= 30_000) {
+                    appendLog(ReportBuilder.memoryLine(this));
+                    lastRss = rss;
+                    lastTime = now;
+                }
+                SystemClock.sleep(2_000);
+            }
+        }, "Install memory monitor");
+        monitor.setDaemon(true);
+        monitor.start();
+    }
+
+    /** Android asks for memory back shortly before it starts killing; worth a line of its own. */
+    @Override public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (started && !removing && !ending)
+            appendLog("Android pide liberar memoria (onTrimMemory " + level + ") " + ReportBuilder.memoryLine(this));
+    }
+
+    private void appendLog(String line) {
+        try (PrintWriter log = new PrintWriter(new FileOutputStream(LauncherStore.log(this), true))) {
+            log.println(line);
+        } catch (IOException ignored) { }
     }
 
     private void backup(String reason) {

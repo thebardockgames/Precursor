@@ -122,6 +122,18 @@ final class ReportBuilder {
         out.append("Precursor (powered by OpenGOAL, proyecto no oficial) - reporte de problema\n");
         out.append("Fecha: ").append(new Date()).append("\n\n");
         if (note != null && !note.trim().isEmpty()) out.append("Qué pasó (según quien reporta):\n").append(note.trim()).append("\n\n");
+        out.append(deviceInfo(context));
+        for (String game : new String[]{"jak1", "jak2", "jak3"}) {
+            out.append(InstallService.title(game)).append(": ")
+                    .append(LauncherStore.installed(context, game) != null ? "instalado" : "no instalado").append('\n');
+        }
+        out.append("\nNo se incluyen partidas guardadas, ISOs ni archivos del juego.\n");
+        return out.toString();
+    }
+
+    /** App build, device, RAM and storage; also written at the top of every install log. (AI-assisted) */
+    static String deviceInfo(Context context) {
+        StringBuilder out = new StringBuilder();
         out.append("App: ").append(BuildConfig.APPLICATION_ID).append(' ').append(BuildConfig.VERSION_NAME)
                 .append(" (").append(BuildConfig.VERSION_CODE).append(")\n");
         out.append("Commit: ").append(BuildConfig.GIT_COMMIT).append("   Compilado: ").append(BuildConfig.BUILD_TIME).append('\n');
@@ -135,15 +147,116 @@ final class ReportBuilder {
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         manager.getMemoryInfo(memory);
         out.append("RAM: ").append(memory.totalMem / (1024 * 1024)).append(" MB total, ")
-                .append(memory.availMem / (1024 * 1024)).append(" MB libres\n");
+                .append(memory.availMem / (1024 * 1024)).append(" MB libres, umbral ")
+                .append(memory.threshold / (1024 * 1024)).append(" MB, poca RAM: ")
+                .append(manager.isLowRamDevice() ? "sí" : "no").append(", límite por app: ")
+                .append(manager.getLargeMemoryClass()).append(" MB\n");
+        out.append("Núcleos: ").append(Runtime.getRuntime().availableProcessors()).append('\n');
         StatFs fs = new StatFs(context.getFilesDir().getPath());
         out.append("Almacenamiento libre: ").append(fs.getAvailableBytes() / (1024 * 1024)).append(" MB\n");
-        for (String game : new String[]{"jak1", "jak2", "jak3"}) {
-            out.append(InstallService.title(game)).append(": ")
-                    .append(LauncherStore.installed(context, game) != null ? "instalado" : "no instalado").append('\n');
-        }
-        out.append("\nNo se incluyen partidas guardadas, ISOs ni archivos del juego.\n");
         return out.toString();
+    }
+
+    /** One line with this process's and the system's memory, for the install log. (AI-assisted) */
+    static String memoryLine(Context context) {
+        Map<String, Long> self = procKb("/proc/self/status", "VmRSS", "VmHWM", "VmSwap", "Threads");
+        Map<String, Long> system = procKb("/proc/meminfo", "MemAvailable", "SwapTotal", "SwapFree");
+        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+        context.getSystemService(ActivityManager.class).getMemoryInfo(memory);
+        return String.format(Locale.ROOT,
+                "[mem %s] proceso %d MB (pico %d MB, swap %d MB, %d hilos) | sistema libre %d MB, swap libre %d/%d MB, poca memoria: %s",
+                new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date()),
+                self.get("VmRSS") >> 10, self.get("VmHWM") >> 10, self.get("VmSwap") >> 10, self.get("Threads"),
+                system.get("MemAvailable") >> 10, system.get("SwapFree") >> 10, system.get("SwapTotal") >> 10,
+                memory.lowMemory ? "sí" : "no");
+    }
+
+    /** "Key: value [kB]" lines of a /proc file; missing keys read as 0. */
+    static Map<String, Long> procKb(String path, String... keys) {
+        Map<String, Long> values = new HashMap<>();
+        for (String key : keys) values.put(key, 0L);
+        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                int colon = line.indexOf(':');
+                if (colon < 0 || !values.containsKey(line.substring(0, colon))) continue;
+                String[] parts = line.substring(colon + 1).trim().split("\\s+");
+                try { values.put(line.substring(0, colon), Long.parseLong(parts[0])); }
+                catch (NumberFormatException ignored) { }
+            }
+        } catch (IOException ignored) { }
+        return values;
+    }
+
+    /**
+     * For an installation still marked running while no installer holds the lock: records once how
+     * it ended (see captureInstallerExit) and returns the ApplicationExitInfo reason, 0 if unknown
+     * or if the installer is still alive. (AI-assisted)
+     */
+    static synchronized int noteInstallerExit(Context context) {
+        JSONObject job = LauncherStore.read(LauncherStore.job(context));
+        if (!"running".equals(job.optString("state")) || LauncherStore.installing(context)) return 0;
+        if (job.has("exitReason")) return job.optInt("exitReason");
+        int reason = captureInstallerExit(context, job.optInt("pid", -1));
+        try { LauncherStore.write(LauncherStore.job(context), job.put("exitReason", reason)); }
+        catch (Exception ignored) { }
+        return reason;
+    }
+
+    /**
+     * The launcher found an installation still marked running with no installer alive: append to the
+     * install log how Android says that process ended, and keep its native crash dump for the report.
+     * Returns the ApplicationExitInfo reason, or 0 if unknown. (AI-assisted)
+     */
+    static int captureInstallerExit(Context context, int pid) {
+        StringBuilder out = new StringBuilder("\n=== Cómo terminó el instalador (pid ").append(pid).append(") ===\n");
+        int reason = 0;
+        if (Build.VERSION.SDK_INT >= 30 && pid > 0) {
+            ActivityManager manager = context.getSystemService(ActivityManager.class);
+            for (ApplicationExitInfo info : manager.getHistoricalProcessExitReasons(context.getPackageName(), pid, 1)) {
+                reason = info.getReason();
+                out.append(info).append('\n');
+                out.append("Motivo: ").append(exitReasonName(reason)).append(", estado ").append(info.getStatus())
+                        .append(", PSS ").append(info.getPss() >> 10).append(" MB, RSS ").append(info.getRss() >> 10)
+                        .append(" MB, importancia ").append(info.getImportance()).append('\n');
+                if (reason == ApplicationExitInfo.REASON_CRASH_NATIVE || reason == ApplicationExitInfo.REASON_ANR) {
+                    try (InputStream trace = info.getTraceInputStream()) {
+                        if (trace != null) {
+                            File pending = LauncherStore.pendingReportDir(context);
+                            InstallFiles.mkdir(pending);
+                            copyLimited(trace, new File(pending, reason == ApplicationExitInfo.REASON_ANR
+                                    ? "installer-anr.txt" : "installer-tombstone.pb"));
+                            out.append("Volcado guardado para el reporte.\n");
+                        }
+                    } catch (IOException ignored) { }
+                }
+            }
+        }
+        if (reason == 0) out.append("Android no guardó el motivo (o esta versión no lo ofrece).\n");
+        out.append("Ahora (launcher): ").append(memoryLine(context)).append('\n');
+        try (OutputStream log = new FileOutputStream(LauncherStore.log(context), true)) {
+            log.write(out.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) { }
+        return reason;
+    }
+
+    private static String exitReasonName(int reason) {
+        switch (reason) {
+            case ApplicationExitInfo.REASON_LOW_MEMORY: return "LOW_MEMORY (Android lo cerró por falta de RAM)";
+            case ApplicationExitInfo.REASON_CRASH_NATIVE: return "CRASH_NATIVE (fallo en código nativo)";
+            case ApplicationExitInfo.REASON_CRASH: return "CRASH (excepción Java)";
+            case ApplicationExitInfo.REASON_ANR: return "ANR (dejó de responder)";
+            case ApplicationExitInfo.REASON_SIGNALED: return "SIGNALED (recibió una señal)";
+            case ApplicationExitInfo.REASON_EXIT_SELF: return "EXIT_SELF (terminó él mismo)";
+            case ApplicationExitInfo.REASON_USER_REQUESTED: return "USER_REQUESTED (forzado por el usuario)";
+            case ApplicationExitInfo.REASON_USER_STOPPED: return "USER_STOPPED";
+            case ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE: return "EXCESSIVE_RESOURCE_USAGE";
+            case ApplicationExitInfo.REASON_PERMISSION_CHANGE: return "PERMISSION_CHANGE";
+            case ApplicationExitInfo.REASON_DEPENDENCY_DIED: return "DEPENDENCY_DIED";
+            case ApplicationExitInfo.REASON_INITIALIZATION_FAILURE: return "INITIALIZATION_FAILURE";
+            case ApplicationExitInfo.REASON_OTHER: return "OTHER";
+            default: return "desconocido (" + reason + ")";
+        }
     }
 
     /** This app's own recent log lines (Android only lets an app read its own). */
